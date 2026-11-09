@@ -10,8 +10,9 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from source.domain.entidades.animal import Animal
+from source.domain.entidades.conta import Conta
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
-from source.domain.entidades.pessoas import CompraAnimal, Proprietario
+from source.domain.entidades.pessoas import CompraAnimal, Fornecedor, Frigorifico, Proprietario
 
 
 class RepositorioAnimais(ABC):
@@ -104,3 +105,57 @@ class RepositorioProprietario(ABC):
     @abstractmethod
     def salvar(self, proprietario: Proprietario) -> None:
         """Persiste o cadastro do proprietário."""
+
+
+class RepositorioFornecedor(ABC):
+    """Contrato para persistir o cadastro do fornecedor de insumos."""
+
+    @abstractmethod
+    def carregar(self) -> Optional[Fornecedor]:
+        """Devolve o fornecedor salvo, ou None se ainda não houver."""
+
+    @abstractmethod
+    def salvar(self, fornecedor: Fornecedor) -> None:
+        """Persiste o cadastro do fornecedor."""
+
+
+class RepositorioFrigorifico(ABC):
+    """Contrato para persistir o cadastro do frigorífico."""
+
+    @abstractmethod
+    def carregar(self) -> Optional[Frigorifico]:
+        """Devolve o frigorífico salvo, ou None se ainda não houver."""
+
+    @abstractmethod
+    def salvar(self, frigorifico: Frigorifico) -> None:
+        """Persiste o cadastro do frigorífico."""
+
+
+class RepositorioContas(ABC):
+    """Contrato para o índice de contas do sistema multiusuário.
+
+    O índice guarda quem pode entrar (nome, documento, papel e a
+    credencial da senha) e em qual arquivo de dados está o trabalho de
+    cada um. As contas são identificadas pelo documento comparando só os
+    dígitos (pontuação é só apresentação, regra definida por
+    normalizar_documento)."""
+
+    @abstractmethod
+    def adicionar(self, conta: Conta) -> None:
+        """Guarda (ou substitui) uma conta, identificada pelo documento."""
+
+    @abstractmethod
+    def buscar_por_documento(self, documento: str) -> Optional[Conta]:
+        """Devolve a conta do documento informado, ou None se não houver."""
+
+    @abstractmethod
+    def remover(self, cpf: str) -> None:
+        """Tira do índice a conta daquele CPF."""
+
+    @abstractmethod
+    def listar(self) -> List[Conta]:
+        """Devolve todas as contas cadastradas."""
+
+    @abstractmethod
+    def salvar(self) -> None:
+        """Persiste o estado atual do índice de contas."""

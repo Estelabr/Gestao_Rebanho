@@ -10,6 +10,7 @@ from datetime import date
 from typing import List, Optional, Tuple
 
 from source.domain.entidades.animal import Animal, Femea, Macho
+from source.domain.entidades.conta import Conta, PAPEIS, normalizar_documento
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
 from source.domain.entidades.manejo import Pesagem, Vacinacao
 from source.domain.entidades.pessoas import CompraAnimal, Fornecedor, Frigorifico, Proprietario
@@ -18,6 +19,9 @@ from source.domain.excecoes import (
     BaseDuplicadaError,
     BaseNaoEncontradaError,
     BrincoDuplicadoError,
+    CadastroNaoPreenchidoError,
+    CredencialInvalidaError,
+    DocumentoDuplicadoError,
     InseminacaoInvalidaError,
     InsumoNaoEncontradoError,
     RegraNegocioViolation,
@@ -26,9 +30,13 @@ from source.domain.repositorios import (
     RepositorioAnimais,
     RepositorioBases,
     RepositorioCompras,
+    RepositorioContas,
+    RepositorioFornecedor,
+    RepositorioFrigorifico,
     RepositorioInsumos,
     RepositorioProprietario,
 )
+from source.usecases.senhas import conferir, gerar_credencial
 
 
 class CadastrarAnimal:
@@ -51,6 +59,7 @@ class CadastrarAnimal:
             raise BrincoDuplicadoError(f"Já existe um animal com o brinco {brinco}.")
         self.__repositorio.adicionar(animal)
         self.__proprietario.adicionar_animal(animal)
+        self.__repositorio.salvar()
         return animal
 
 
@@ -389,15 +398,232 @@ class VenderInsumo:
         )
 
 
+def _sincronizar_indice(
+    repositorio_contas: Optional[RepositorioContas],
+    documento_antigo: str,
+    nome: str,
+    documento: str,
+    credencial: Optional[str] = None,
+) -> None:
+    """Leva ao índice de contas o cadastro novo de uma conta: nome,
+    documento e, quando informado, a credencial nova da senha. O papel e
+    o arquivo de dados da conta são preservados."""
+    if repositorio_contas is None:
+        return
+    conta = repositorio_contas.buscar_por_documento(documento_antigo)
+    if conta is None:
+        return
+    mesmo_nome = conta.nome == nome
+    mesmo_documento = normalizar_documento(conta.documento) == normalizar_documento(documento)
+    mesma_credencial = credencial is None or conta.senha == credencial
+    if mesmo_nome and mesmo_documento and mesma_credencial:
+        return
+    repositorio_contas.remover(conta.documento)
+    repositorio_contas.adicionar(
+        Conta(
+            nome,
+            documento,
+            conta.papel,
+            conta.arquivo,
+            credencial if credencial is not None else conta.senha,
+        )
+    )
+    repositorio_contas.salvar()
+
+
+def _garantir_documento_livre(
+    repositorio_contas: Optional[RepositorioContas], documento: str
+) -> None:
+    """Falha se alguma outra conta já usa o documento informado — o
+    documento é a chave de login e é único, pontuação à parte."""
+    if repositorio_contas is None:
+        return
+    if repositorio_contas.buscar_por_documento(documento) is not None:
+        raise DocumentoDuplicadoError(
+            f"Já existe uma conta com o documento {documento.strip()}."
+        )
+
+
 class Autocadastro:
     """Autocadastro do usuário: define (ou corrige) o cadastro do
-    proprietário da propriedade."""
+    proprietário da propriedade, com nome, CPF e senha.
 
-    def __init__(self, proprietario: Proprietario, repositorio: RepositorioProprietario) -> None:
+    A senha chega em texto digitado e é guardada como credencial
+    (hash PBKDF2 com salt) — nunca em texto plano.
+
+    No sistema multiusuário o CPF é a chave de login: quando o cadastro
+    muda de nome ou de CPF, o índice de contas (opcional) é atualizado
+    para que a próxima entrada continue encontrando o usuário."""
+
+    def __init__(
+        self,
+        proprietario: Proprietario,
+        repositorio: RepositorioProprietario,
+        repositorio_contas: Optional[RepositorioContas] = None,
+    ) -> None:
         self.__proprietario = proprietario
         self.__repositorio = repositorio
+        self.__repositorio_contas = repositorio_contas
 
-    def executar(self, nome: str, cpf: str) -> Proprietario:
-        self.__proprietario.atualizar_cadastro(nome, cpf)
+    def executar(self, nome: str, cpf: str, senha: str) -> Proprietario:
+        if not senha.strip():
+            raise RegraNegocioViolation("A senha é obrigatória no autocadastro.")
+        documento_novo = cpf.strip()
+        documento_antigo = self.__proprietario.cpf
+        mudou_documento = (
+            normalizar_documento(documento_novo) != normalizar_documento(documento_antigo)
+        )
+        if mudou_documento:
+            _garantir_documento_livre(self.__repositorio_contas, documento_novo)
+        credencial = gerar_credencial(senha.strip())
+        self.__proprietario.atualizar_cadastro(nome, cpf, credencial)
         self.__repositorio.salvar(self.__proprietario)
+        _sincronizar_indice(
+            self.__repositorio_contas, documento_antigo, self.__proprietario.nome,
+            documento_novo, credencial,
+        )
         return self.__proprietario
+
+
+class CadastrarConta:
+    """Autocadastro multiusuário: cria a conta de um novo usuário do
+    sistema, com nome, documento (CPF ou CNPJ), papel e senha.
+
+    O papel acompanha a conta — o criador é sempre o ator que vai usar
+    o sistema. A conta nasce isolada: ganha um arquivo de dados próprio
+    (dados_<documento>.json) já com o cadastro do papel semeado nele,
+    e o índice de contas guarda o nome, o documento, o papel, o arquivo
+    e a credencial da senha. O documento é a chave de login e não pode
+    se repetir, nem mesmo digitado com pontuação diferente."""
+
+    def __init__(
+        self,
+        repositorio_contas: RepositorioContas,
+        criador_de_arquivos,
+    ) -> None:
+        """Recebe o índice de contas e o criador que semeia o arquivo de
+        dados da conta nova (implementado na infraestrutura)."""
+        self.__repositorio_contas = repositorio_contas
+        self.__criador = criador_de_arquivos
+
+    def executar(
+        self, nome: str, documento: str, papel: str, senha: str
+    ) -> Conta:
+        if not nome.strip() or not documento.strip():
+            raise RegraNegocioViolation(
+                "Nome e documento são obrigatórios no cadastro da conta."
+            )
+        if not senha.strip():
+            raise RegraNegocioViolation("A senha é obrigatória no cadastro da conta.")
+        if papel not in PAPEIS:
+            raise RegraNegocioViolation(f"Papel desconhecido: {papel}.")
+        conta_existente = self.__repositorio_contas.buscar_por_documento(documento.strip())
+        if conta_existente is not None:
+            return self.__adotar_ou_rejeitar(conta_existente, nome.strip(), senha.strip())
+        credencial = gerar_credencial(senha.strip())
+        arquivo = self.__criador.criar(papel, nome.strip(), documento.strip())
+        conta = Conta(nome.strip(), documento.strip(), papel, arquivo, credencial)
+        self.__repositorio_contas.adicionar(conta)
+        self.__repositorio_contas.salvar()
+        return conta
+
+    def __adotar_ou_rejeitar(self, conta: Conta, nome: str, senha: str) -> Conta:
+        """Contas legadas sem senha são adotadas: o dono do documento
+        define o nome e a senha de acesso, e o arquivo de dados — com o
+        trabalho que já existe nele — continua o mesmo. Contas que já
+        têm senha não podem ser recriadas: o documento é único."""
+        if conta.senha:
+            raise DocumentoDuplicadoError(
+                f"Já existe uma conta com o documento {conta.documento}."
+            )
+        credencial = gerar_credencial(senha)
+        adotada = Conta(nome, conta.documento, conta.papel, conta.arquivo, credencial)
+        self.__repositorio_contas.remover(conta.documento)
+        self.__repositorio_contas.adicionar(adotada)
+        self.__repositorio_contas.salvar()
+        return adotada
+
+
+class AutenticarConta:
+    """Login multiusuário: identifica a conta pelo documento e confere a
+    senha contra a credencial guardada no índice de contas.
+
+    Devolve a Conta autenticada — nome, documento, papel e arquivo —;
+    a composição de raiz usa o papel para abrir a área certa e o
+    arquivo para montar o sistema só com os dados desse usuário."""
+
+    def __init__(self, repositorio_contas: RepositorioContas) -> None:
+        self.__repositorio_contas = repositorio_contas
+
+    def executar(self, documento: str, senha: Optional[str]) -> Conta:
+        conta = self.__repositorio_contas.buscar_por_documento(documento.strip())
+        if conta is None:
+            raise CredencialInvalidaError("Documento ou senha inválidos.")
+        if not conta.senha:
+            raise CadastroNaoPreenchidoError(
+                "A conta ainda não tem senha: use 'Criar conta' com o mesmo "
+                "documento para definir o acesso (os dados dela são mantidos)."
+            )
+        if senha is None or not conferir(senha, conta.senha):
+            raise CredencialInvalidaError("Documento ou senha inválidos.")
+        return conta
+
+
+class CadastrarFornecedor:
+    """Correção do cadastro do fornecedor pela área dele.
+
+    No sistema multiusuário o CNPJ é a chave de login: quando muda, o
+    índice de contas (opcional) é atualizado para que a próxima entrada
+    continue encontrando o usuário."""
+
+    def __init__(
+        self,
+        fornecedor: Fornecedor,
+        repositorio: RepositorioFornecedor,
+        repositorio_contas: Optional[RepositorioContas] = None,
+    ) -> None:
+        self.__fornecedor = fornecedor
+        self.__repositorio = repositorio
+        self.__repositorio_contas = repositorio_contas
+
+    def executar(self, nome: str, cnpj: str) -> Fornecedor:
+        documento_antigo = self.__fornecedor.cnpj
+        if normalizar_documento(cnpj.strip()) != normalizar_documento(documento_antigo):
+            _garantir_documento_livre(self.__repositorio_contas, cnpj)
+        self.__fornecedor.atualizar_cadastro(nome, cnpj)
+        self.__repositorio.salvar(self.__fornecedor)
+        _sincronizar_indice(
+            self.__repositorio_contas, documento_antigo, self.__fornecedor.nome,
+            self.__fornecedor.cnpj,
+        )
+        return self.__fornecedor
+
+
+class CadastrarFrigorifico:
+    """Correção do cadastro do frigorífico pela área dele.
+
+    No sistema multiusuário o CNPJ é a chave de login: quando muda, o
+    índice de contas (opcional) é atualizado para que a próxima entrada
+    continue encontrando o usuário."""
+
+    def __init__(
+        self,
+        frigorifico: Frigorifico,
+        repositorio: RepositorioFrigorifico,
+        repositorio_contas: Optional[RepositorioContas] = None,
+    ) -> None:
+        self.__frigorifico = frigorifico
+        self.__repositorio = repositorio
+        self.__repositorio_contas = repositorio_contas
+
+    def executar(self, nome: str, cnpj: str) -> Frigorifico:
+        documento_antigo = self.__frigorifico.cnpj
+        if normalizar_documento(cnpj.strip()) != normalizar_documento(documento_antigo):
+            _garantir_documento_livre(self.__repositorio_contas, cnpj)
+        self.__frigorifico.atualizar_cadastro(nome, cnpj)
+        self.__repositorio.salvar(self.__frigorifico)
+        _sincronizar_indice(
+            self.__repositorio_contas, documento_antigo, self.__frigorifico.nome,
+            self.__frigorifico.cnpj,
+        )
+        return self.__frigorifico

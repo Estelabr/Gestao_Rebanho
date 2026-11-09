@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 dados.json
+dados_*.json
+usuarios.json

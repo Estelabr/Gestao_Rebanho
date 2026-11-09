@@ -5,7 +5,7 @@ from datetime import date
 
 from source.domain.entidades.animal import Animal, Femea, Macho
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
-from source.domain.entidades.pessoas import Frigorifico, Proprietario
+from source.domain.entidades.pessoas import Fornecedor, Frigorifico, Proprietario
 from source.domain.excecoes import (
     AnimalVendidoError,
     EstoqueInsuficienteError,
@@ -198,18 +198,21 @@ class TestInsumos(unittest.TestCase):
 
 
 class TestProprietario(unittest.TestCase):
-    def test_autocadastro_exige_nome_e_cpf(self):
+    def test_autocadastro_exige_nome_cpf_e_senha(self):
         proprietario = Proprietario("Fulano", "000.000.000-00")
         with self.assertRaises(RegraNegocioViolation):
-            proprietario.atualizar_cadastro("  ", "000.000.000-00")
+            proprietario.atualizar_cadastro("  ", "000.000.000-00", "s3cr3t")
         with self.assertRaises(RegraNegocioViolation):
-            proprietario.atualizar_cadastro("Fulano", "")
+            proprietario.atualizar_cadastro("Fulano", "", "s3cr3t")
+        with self.assertRaises(RegraNegocioViolation):
+            proprietario.atualizar_cadastro("Fulano", "000.000.000-00", "   ")
 
     def test_autocadastro_atualiza_os_dados(self):
         proprietario = Proprietario("Fulano", "000.000.000-00")
-        proprietario.atualizar_cadastro("Maria", "123.456.789-00")
+        proprietario.atualizar_cadastro("Maria", "123.456.789-00", "credencial-salva")
         self.assertEqual(proprietario.nome, "Maria")
         self.assertEqual(proprietario.cpf, "123.456.789-00")
+        self.assertEqual(proprietario.senha, "credencial-salva")
 
 
 class TestObjetosValor(unittest.TestCase):
@@ -225,6 +228,29 @@ class TestObjetosValor(unittest.TestCase):
 
         with self.assertRaises(BrincoInvalidoError):
             Femea("   ", date(2024, 1, 1), "Nelore")
+
+
+class TestAtualizarCadastroDeOrganizacoes(unittest.TestCase):
+    """O cadastro (nome + documento) é preenchido no primeiro acesso do
+    fornecedor e do frigorífico, como o autocadastro do proprietário."""
+
+    def test_fornecedor_atualiza_nome_e_cnpj(self):
+        fornecedor = Fornecedor("", "")
+        fornecedor.atualizar_cadastro("Agropecuária Central", "12.345.678/0001-90")
+        self.assertEqual(fornecedor.nome, "Agropecuária Central")
+        self.assertEqual(fornecedor.cnpj, "12.345.678/0001-90")
+
+    def test_frigorifico_atualiza_nome_e_cnpj(self):
+        frigorifico = Frigorifico("", "")
+        frigorifico.atualizar_cadastro("Frigorífico Pampa Sul", "98.765.432/0001-10")
+        self.assertEqual(frigorifico.nome, "Frigorífico Pampa Sul")
+        self.assertEqual(frigorifico.cnpj, "98.765.432/0001-10")
+
+    def test_cadastro_sem_nome_ou_cnpj_e_bloqueado(self):
+        with self.assertRaises(RegraNegocioViolation):
+            Fornecedor("", "").atualizar_cadastro("   ", "12.345.678/0001-90")
+        with self.assertRaises(RegraNegocioViolation):
+            Frigorifico("", "").atualizar_cadastro("Pampa Sul", "")
 
 
 if __name__ == "__main__":

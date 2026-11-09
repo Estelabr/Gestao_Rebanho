@@ -7,13 +7,15 @@ from datetime import date
 
 from source.domain.entidades.animal import Femea, Macho
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
-from source.domain.entidades.pessoas import CompraAnimal, Proprietario
+from source.domain.entidades.pessoas import CompraAnimal, Fornecedor, Frigorifico, Proprietario
 from source.infra.repositorio_json import (
     ArquivoDados,
     RepositorioAnimaisJson,
     RepositorioBasesJson,
     RepositorioCatalogoFornecedorJson,
     RepositorioComprasJson,
+    RepositorioFornecedorJson,
+    RepositorioFrigorificoJson,
     RepositorioInsumosJson,
     RepositorioProprietarioJson,
 )
@@ -213,6 +215,65 @@ class TestPersistenciaCompleta(unittest.TestCase):
         self.assertEqual(self.__bases.listar(), [])
         self.assertEqual(self.__compras.listar(), [])
         self.assertIsNone(self.__proprietarios.carregar())
+
+
+class TestRepositorioCadastrosJson(unittest.TestCase):
+    """Cadastros dos atores: proprietário, fornecedor e frigorífico."""
+
+    def setUp(self) -> None:
+        self.__tmp = tempfile.TemporaryDirectory()
+        self.__arquivo = ArquivoDados(os.path.join(self.__tmp.name, "dados.json"))
+        self.__fornecedores = RepositorioFornecedorJson(self.__arquivo)
+        self.__frigorificos = RepositorioFrigorificoJson(self.__arquivo)
+        self.__proprietarios = RepositorioProprietarioJson(self.__arquivo)
+
+    def tearDown(self) -> None:
+        self.__tmp.cleanup()
+
+    def test_salvar_e_carregar_cadastro_do_fornecedor(self):
+        self.__fornecedores.salvar(Fornecedor("Agropecuária Central", "12.345.678/0001-90"))
+
+        salvo = RepositorioFornecedorJson(self.__arquivo).carregar()
+
+        self.assertEqual(salvo.nome, "Agropecuária Central")
+        self.assertEqual(salvo.cnpj, "12.345.678/0001-90")
+
+    def test_salvar_e_carregar_cadastro_do_frigorifico(self):
+        self.__frigorificos.salvar(Frigorifico("Frigorífico Pampa Sul", "98.765.432/0001-10"))
+
+        salvo = RepositorioFrigorificoJson(self.__arquivo).carregar()
+
+        self.assertEqual(salvo.nome, "Frigorífico Pampa Sul")
+        self.assertEqual(salvo.cnpj, "98.765.432/0001-10")
+
+    def test_sem_arquivo_comeca_sem_cadastro(self):
+        self.assertIsNone(self.__fornecedores.carregar())
+        self.assertIsNone(self.__frigorificos.carregar())
+        self.assertIsNone(self.__proprietarios.carregar())
+
+    def test_cadastro_padrao_antigo_do_proprietario_e_tratado_como_vazio(self):
+        """Arquivos de execuções anteriores com o cadastro-padrão passam
+        pelo autocadastro obrigatório do primeiro acesso."""
+        self.__arquivo.salvar(
+            {
+                "proprietario": {
+                    "nome": "Fazenda Boa Esperança",
+                    "cpf": "000.000.000-00",
+                }
+            }
+        )
+
+        self.assertIsNone(RepositorioProprietarioJson(self.__arquivo).carregar())
+
+    def test_cadastro_real_do_proprietario_sobrevive_a_reabertura(self):
+        credencial = "pbkdf2$100000$ab12$cd34"
+        self.__proprietarios.salvar(Proprietario("Maria", "123.456.789-00", credencial))
+
+        salvo = RepositorioProprietarioJson(self.__arquivo).carregar()
+
+        self.assertEqual(salvo.nome, "Maria")
+        self.assertEqual(salvo.cpf, "123.456.789-00")
+        self.assertEqual(salvo.senha, credencial)
 
 
 if __name__ == "__main__":

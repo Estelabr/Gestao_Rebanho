@@ -64,3 +64,15 @@ class BaseNaoEncontradaError(RegraNegocioViolation):
 
 class BaseDuplicadaError(RegraNegocioViolation):
     """Já existe uma base de alimentação com o mesmo nome."""
+
+
+class CadastroNaoPreenchidoError(RegraNegocioViolation):
+    """O ator ainda não tem cadastro: nome e documento são obrigatórios."""
+
+
+class CredencialInvalidaError(RegraNegocioViolation):
+    """O documento informado não corresponde ao cadastro do perfil."""
+
+
+class DocumentoDuplicadoError(RegraNegocioViolation):
+    """Já existe uma conta de usuário cadastrada com o mesmo documento."""

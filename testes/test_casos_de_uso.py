@@ -26,12 +26,17 @@ from source.domain.repositorios import (
     RepositorioAnimais,
     RepositorioBases,
     RepositorioCompras,
+    RepositorioFornecedor,
+    RepositorioFrigorifico,
     RepositorioInsumos,
     RepositorioProprietario,
 )
+from source.usecases.senhas import conferir
 from source.usecases.casos_de_uso import (
     Autocadastro,
     CadastrarAnimal,
+    CadastrarFornecedor,
+    CadastrarFrigorifico,
     CadastrarInsumo,
     ComprarInsumo,
     ConsultarAlimentacao,
@@ -144,6 +149,36 @@ class RepositorioProprietarioMemoria(RepositorioProprietario):
         self.chamadas_salvar += 1
 
 
+class RepositorioFornecedorMemoria(RepositorioFornecedor):
+    """Dobra de teste: guarda o cadastro do fornecedor em memória."""
+
+    def __init__(self) -> None:
+        self._fornecedor: Optional[Fornecedor] = None
+        self.chamadas_salvar = 0
+
+    def carregar(self) -> Optional[Fornecedor]:
+        return self._fornecedor
+
+    def salvar(self, fornecedor: Fornecedor) -> None:
+        self._fornecedor = fornecedor
+        self.chamadas_salvar += 1
+
+
+class RepositorioFrigorificoMemoria(RepositorioFrigorifico):
+    """Dobra de teste: guarda o cadastro do frigorífico em memória."""
+
+    def __init__(self) -> None:
+        self._frigorifico: Optional[Frigorifico] = None
+        self.chamadas_salvar = 0
+
+    def carregar(self) -> Optional[Frigorifico]:
+        return self._frigorifico
+
+    def salvar(self, frigorifico: Frigorifico) -> None:
+        self._frigorifico = frigorifico
+        self.chamadas_salvar += 1
+
+
 class TestCadastrarAnimal(unittest.TestCase):
     def setUp(self) -> None:
         self.repositorio = RepositorioAnimaisMemoria()
@@ -178,8 +213,11 @@ class TestRegistrarPesagemEVacinacao(unittest.TestCase):
         self.vacinacao = RegistrarVacinacao(self.repositorio)
 
     def test_registrar_pesagem_chama_o_repositorio_salvar(self):
+        # O cadastro do animal do setUp já persistiu uma vez; o que este
+        # teste observa é a pesagem gravando o rebanho por cima disso.
+        salvar_antes = self.repositorio.chamadas_salvar
         self.pesagem.executar("F1", 380.0, date(2026, 1, 1))
-        self.assertEqual(self.repositorio.chamadas_salvar, 1)
+        self.assertEqual(self.repositorio.chamadas_salvar, salvar_antes + 1)
         animal = self.repositorio.buscar_por_brinco("F1")
         self.assertEqual(animal.peso_atual(), 380.0)
 
@@ -442,14 +480,71 @@ class TestAutocadastro(unittest.TestCase):
     def test_autocadastro_atualiza_e_salva_o_cadastro(self):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
         repositorio = RepositorioProprietarioMemoria()
-        Autocadastro(proprietario, repositorio).executar("Maria", "123.456.789-00")
+        Autocadastro(proprietario, repositorio).executar(
+            "Maria", "123.456.789-00", "s3cr3t"
+        )
         self.assertEqual(proprietario.nome, "Maria")
-        self.assertEqual(repositorio.carregar().cpf, "123.456.789-00")
+        salvo = repositorio.carregar()
+        self.assertEqual(salvo.cpf, "123.456.789-00")
+
+    def test_a_senha_e_guardada_como_hash_nunca_em_texto_plano(self):
+        proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
+        repositorio = RepositorioProprietarioMemoria()
+        Autocadastro(proprietario, repositorio).executar(
+            "Maria", "123.456.789-00", "s3cr3t"
+        )
+        credencial = repositorio.carregar().senha
+        self.assertNotIn("s3cr3t", credencial)
+        self.assertTrue(conferir("s3cr3t", credencial))
 
     def test_autocadastro_com_dados_vazios_e_bloqueado(self):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
         with self.assertRaises(RegraNegocioViolation):
-            Autocadastro(proprietario, RepositorioProprietarioMemoria()).executar("", "")
+            Autocadastro(
+                proprietario, RepositorioProprietarioMemoria()
+            ).executar("", "", "s3cr3t")
+
+    def test_autocadastro_sem_senha_e_bloqueado(self):
+        proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
+        with self.assertRaises(RegraNegocioViolation):
+            Autocadastro(
+                proprietario, RepositorioProprietarioMemoria()
+            ).executar("Maria", "123.456.789-00", "   ")
+
+
+class TestCadastroDeOrganizacoes(unittest.TestCase):
+    """Cadastro do fornecedor e do frigorífico no primeiro acesso."""
+
+    def setUp(self) -> None:
+        self.fornecedor = Fornecedor("", "")
+        self.frigorifico = Frigorifico("", "")
+        self.repositorio_fornecedor = RepositorioFornecedorMemoria()
+        self.repositorio_frigorifico = RepositorioFrigorificoMemoria()
+        self.cadastrar_fornecedor = CadastrarFornecedor(
+            self.fornecedor, self.repositorio_fornecedor
+        )
+        self.cadastrar_frigorifico = CadastrarFrigorifico(
+            self.frigorifico, self.repositorio_frigorifico
+        )
+
+    def test_cadastrar_fornecedor_preenche_e_salva_o_cadastro(self):
+        self.cadastrar_fornecedor.executar("Agropecuária Central", "12.345.678/0001-90")
+        salvo = self.repositorio_fornecedor.carregar()
+        self.assertEqual(salvo.nome, "Agropecuária Central")
+        self.assertEqual(salvo.cnpj, "12.345.678/0001-90")
+        self.assertEqual(self.fornecedor.nome, "Agropecuária Central")
+
+    def test_cadastrar_frigorifico_preenche_e_salva_o_cadastro(self):
+        self.cadastrar_frigorifico.executar("Frigorífico Pampa Sul", "98.765.432/0001-10")
+        salvo = self.repositorio_frigorifico.carregar()
+        self.assertEqual(salvo.nome, "Frigorífico Pampa Sul")
+        self.assertEqual(salvo.cnpj, "98.765.432/0001-10")
+
+    def test_cadastro_sem_nome_ou_cnpj_e_bloqueado(self):
+        with self.assertRaises(RegraNegocioViolation):
+            self.cadastrar_fornecedor.executar("Agropecuária Central", "   ")
+        with self.assertRaises(RegraNegocioViolation):
+            self.cadastrar_frigorifico.executar("", "98.765.432/0001-10")
 
 
 if __name__ == "__main__":

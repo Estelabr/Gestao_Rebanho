@@ -4,13 +4,25 @@ Só esta camada conhece o formato do arquivo: o resto do sistema fala com
 os contratos de repositório, que moram no domínio
 (source/domain/repositorios.py) e são cumpridos aqui.
 
-Seções do dados.json:
-  animais       -- cadastro de animais (pesagens, vacinas, reprodução, venda)
-  insumos       -- estoque da fazenda
-  fornecedor    -- catálogo de lotes do fornecedor
-  bases         -- bases de alimentação
-  compras       -- histórico de compras do frigorífico
-  proprietario  -- cadastro do proprietário (autocadastro)
+Sistema multiusuário: cada conta de usuário tem o seu próprio arquivo de
+dados ("dados_<documento>.json"), com as seções abaixo. O índice de
+contas ("usuarios.json") é global: diz quem pode entrar, com qual papel
+e qual arquivo — a senha entra nele apenas como credencial (hash).
+
+Seções do dados_<cpf>.json:
+  animais              -- cadastro de animais (pesagens, vacinas, reprodução, venda)
+  insumos              -- estoque da fazenda
+  fornecedor           -- catálogo de lotes do fornecedor
+  fornecedor_cadastro  -- cadastro do fornecedor (nome e CNPJ)
+  bases                -- bases de alimentação
+  compras              -- histórico de compras do frigorífico
+  frigorifico          -- cadastro do frigorífico (nome e CNPJ)
+  proprietario         -- cadastro do proprietário (autocadastro: nome,
+                          CPF e hash da senha)
+
+Seções do usuarios.json:
+  contas               -- índice de usuários (nome, documento, papel,
+                          credencial da senha e arquivo de dados)
 
 Referências entre objetos (filhos, base do animal, animal da compra,
 insumo da base) são re-vinculadas na reconstrução, em segunda passada.
@@ -23,13 +35,17 @@ from datetime import date
 from typing import Any, Callable, Dict, List, Optional
 
 from source.domain.entidades.animal import Animal, Femea, Macho
+from source.domain.entidades.conta import Conta, normalizar_documento
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
-from source.domain.entidades.pessoas import CompraAnimal, Proprietario
+from source.domain.entidades.pessoas import CompraAnimal, Fornecedor, Frigorifico, Proprietario
 from source.domain.excecoes import AnimalNaoEncontradoError
 from source.domain.repositorios import (
     RepositorioAnimais,
     RepositorioBases,
     RepositorioCompras,
+    RepositorioContas,
+    RepositorioFornecedor,
+    RepositorioFrigorifico,
     RepositorioInsumos,
     RepositorioProprietario,
 )
@@ -303,9 +319,15 @@ class RepositorioComprasJson(RepositorioCompras):
 
 
 class RepositorioProprietarioJson(RepositorioProprietario):
-    """Guarda o cadastro do proprietário, na seção 'proprietario'."""
+    """Guarda o cadastro do proprietário, na seção 'proprietario'.
+
+    O cadastro padrão antigo ("Fazenda Boa Esperança" com CPF zerado) é
+    tratado como vazio, para que arquivos de execuções anteriores também
+    passem pelo autocadastro obrigatório do primeiro acesso.
+    """
 
     SECAO = "proprietario"
+    CADASTRO_PADRAO_ANTIGO = ("Fazenda Boa Esperança", "000.000.000-00")
 
     def __init__(self, arquivo: ArquivoDados) -> None:
         self.__arquivo = arquivo
@@ -314,9 +336,170 @@ class RepositorioProprietarioJson(RepositorioProprietario):
         item = self.__arquivo.carregar().get(self.SECAO)
         if not item:
             return None
-        return Proprietario(item.get("nome", ""), item.get("cpf", ""))
+        proprietario = Proprietario(
+            item.get("nome", ""), item.get("cpf", ""), item.get("senha", "")
+        )
+        if (proprietario.nome, proprietario.cpf) == self.CADASTRO_PADRAO_ANTIGO:
+            return None
+        return proprietario
 
     def salvar(self, proprietario: Proprietario) -> None:
         dados = self.__arquivo.carregar()
-        dados[self.SECAO] = {"nome": proprietario.nome, "cpf": proprietario.cpf}
+        dados[self.SECAO] = {
+            "nome": proprietario.nome,
+            "cpf": proprietario.cpf,
+            "senha": proprietario.senha,
+        }
         self.__arquivo.salvar(dados)
+
+
+class RepositorioFornecedorJson(RepositorioFornecedor):
+    """Guarda o cadastro do fornecedor, na seção 'fornecedor_cadastro'.
+
+    A seção 'fornecedor' guarda o catálogo de lotes; o cadastro (nome e
+    CNPJ, credencial de entrada do ator) fica em uma seção própria.
+    """
+
+    SECAO = "fornecedor_cadastro"
+
+    def __init__(self, arquivo: ArquivoDados) -> None:
+        self.__arquivo = arquivo
+
+    def carregar(self) -> Optional[Fornecedor]:
+        item = self.__arquivo.carregar().get(self.SECAO)
+        if not item:
+            return None
+        return Fornecedor(item.get("nome", ""), item.get("cnpj", ""))
+
+    def salvar(self, fornecedor: Fornecedor) -> None:
+        dados = self.__arquivo.carregar()
+        dados[self.SECAO] = {"nome": fornecedor.nome, "cnpj": fornecedor.cnpj}
+        self.__arquivo.salvar(dados)
+
+
+class RepositorioFrigorificoJson(RepositorioFrigorifico):
+    """Guarda o cadastro do frigorífico, na seção 'frigorifico'."""
+
+    SECAO = "frigorifico"
+
+    def __init__(self, arquivo: ArquivoDados) -> None:
+        self.__arquivo = arquivo
+
+    def carregar(self) -> Optional[Frigorifico]:
+        item = self.__arquivo.carregar().get(self.SECAO)
+        if not item:
+            return None
+        return Frigorifico(item.get("nome", ""), item.get("cnpj", ""))
+
+    def salvar(self, frigorifico: Frigorifico) -> None:
+        dados = self.__arquivo.carregar()
+        dados[self.SECAO] = {"nome": frigorifico.nome, "cnpj": frigorifico.cnpj}
+        self.__arquivo.salvar(dados)
+
+
+# ----------------------------------------------------------------------
+# Multiusuário: índice de contas e criação do arquivo de cada conta
+# ----------------------------------------------------------------------
+def caminho_de_dados(documento: str) -> str:
+    """Arquivo de dados da conta daquele documento: dados_<dígitos>.json.
+
+    Cada usuário tem o seu próprio arquivo — é por aí que o sistema
+    isola o trabalho de um usuário do do outro."""
+    return f"dados_{normalizar_documento(documento)}.json"
+
+
+class IndiceContasJson(RepositorioContas):
+    """Guarda o índice de contas do sistema, na seção 'contas' do
+    usuarios.json: nome, documento, papel, credencial da senha e arquivo
+    de dados de cada usuário. É o índice quem alimenta o login.
+
+    Índices antigos, que não guardavam a credencial (ela morava só no
+    cadastro do Proprietário, dentro do arquivo de dados da conta), são
+    atualizados na carga: a credencial do arquivo é levada ao índice, e
+    o índice é salvo de novo — a transição acontece uma vez só."""
+
+    SECAO = "contas"
+
+    def __init__(self, arquivo: ArquivoDados) -> None:
+        self.__arquivo = arquivo
+        self.__contas: Dict[str, Conta] = {}
+        for item in self.__arquivo.carregar().get(self.SECAO, []):
+            conta = Conta(
+                item.get("nome", ""),
+                item.get("documento", item.get("cpf", "")),
+                item.get("papel", "proprietario"),
+                item.get("arquivo", ""),
+                item.get("senha", ""),
+            )
+            self.__contas[normalizar_documento(conta.documento)] = conta
+        self.__recuperar_credenciais_do_formato_antigo()
+
+    def __recuperar_credenciais_do_formato_antigo(self) -> None:
+        """Índices antigos sem credencial: toma a do cadastro do
+        Proprietário no arquivo de dados de cada conta."""
+        atualizadas = False
+        for chave, conta in list(self.__contas.items()):
+            if conta.senha:
+                continue
+            cadastro = RepositorioProprietarioJson(
+                ArquivoDados(conta.arquivo)
+            ).carregar()
+            if cadastro is None or not cadastro.senha:
+                continue
+            self.__contas[chave] = Conta(
+                conta.nome, conta.documento, conta.papel, conta.arquivo, cadastro.senha
+            )
+            atualizadas = True
+        if atualizadas:
+            self.salvar()
+
+    def adicionar(self, conta: Conta) -> None:
+        self.__contas[normalizar_documento(conta.documento)] = conta
+
+    def buscar_por_documento(self, documento: str) -> Optional[Conta]:
+        return self.__contas.get(normalizar_documento(documento))
+
+    def remover(self, documento: str) -> None:
+        self.__contas.pop(normalizar_documento(documento), None)
+
+    def listar(self) -> List[Conta]:
+        return list(self.__contas.values())
+
+    def salvar(self) -> None:
+        dados = self.__arquivo.carregar()
+        dados[self.SECAO] = [
+            {
+                "nome": conta.nome,
+                "documento": conta.documento,
+                "papel": conta.papel,
+                "arquivo": conta.arquivo,
+                "senha": conta.senha,
+            }
+            for conta in self.__contas.values()
+        ]
+        self.__arquivo.salvar(dados)
+
+
+class FonteDeCadastros:
+    """Cria o arquivo de dados de uma conta nova, já com o cadastro do
+    papel dela semeado nele — o proprietário no 'proprietario', o
+    fornecedor no 'fornecedor_cadastro', o frigorífico no 'frigorifico'.
+
+    Com o cadastro semeado, a área do papel abre de cara, sem
+    primeiro-acesso: quem cria a conta já se cadastra nela."""
+
+    def caminho_de(self, documento: str) -> str:
+        """Arquivo de dados da conta daquele documento."""
+        return caminho_de_dados(documento)
+
+    def criar(self, papel: str, nome: str, documento: str) -> str:
+        """Cria o arquivo de dados da conta e devolve o caminho criado."""
+        caminho = caminho_de_dados(documento)
+        arquivo = ArquivoDados(caminho)
+        if papel == "proprietario":
+            RepositorioProprietarioJson(arquivo).salvar(Proprietario(nome, documento))
+        elif papel == "fornecedor":
+            RepositorioFornecedorJson(arquivo).salvar(Fornecedor(nome, documento))
+        elif papel == "frigorifico":
+            RepositorioFrigorificoJson(arquivo).salvar(Frigorifico(nome, documento))
+        return caminho

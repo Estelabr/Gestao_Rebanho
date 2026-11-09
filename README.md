@@ -1,8 +1,10 @@
 # Sistema de Gestão de Rebanho
 
-Trabalho de POO I — tema **Gestão de Rebanho**. Sistema para controlar o rebanho de uma
-propriedade rural de gado de corte: cadastro de animais, acompanhamento de peso e vacinas,
-gestão de nutrição, inseminação e compra de insumos.
+Trabalho de POO I — tema **Gestão de Rebanho**. Sistema **multiusuário** para controlar o
+rebanho de uma propriedade rural de gado de corte: cada usuário cria a sua conta (CPF e
+senha) e cuida do rebanho dela — cadastro de animais, acompanhamento de peso e vacinas,
+gestão de nutrição, inseminação e compra de insumos. Os dados de um usuário ficam isolados
+dos dos outros.
 
 **Autores:** Andrei Ruan Steffens, Estela Giovana Kaster, Paulo Henrique Vieira Klumb,
 Matheus Zuchi Balbinot — Instituto Federal de Educação, Ciência e Tecnologia Catarinense,
@@ -136,9 +138,11 @@ interfaces ──► usecases ──► domain ◄── infra
   entidades e repositório, mas não contêm regra de negócio.
 - **`source/infra/`** — a implementação concreta em JSON (`repositorio_json.py`), que cumpre
   os contratos definidos no domínio. O domínio não sabe que existe JSON.
-- **`source/interfaces/`** — apresentação: console (`presenter_console.py`), organizado
-  pelos atores do diagrama de casos de uso, e interface gráfica Tkinter
-  (`interface_tkinter.py`). Sem regra de negócio: apenas chama casos de uso.
+- **`source/interfaces/`** — apresentação, organizada pelo papel da conta. A entrada é o
+  login multiusuário (documento e senha, ou criação de conta já com o papel); montado o
+  sistema com os dados da conta, a área do papel abre direto — sem seleção de perfil —,
+  com uma janela (Tkinter) ou um submenu (console) só com as funções do papel. Sem
+  regra de negócio: apenas chama casos de uso.
 
 Princípios de Clean Code aplicados: responsabilidade única (um arquivo por responsabilidade),
 inversão de dependência (casos de uso e interface dependem de abstrações, não da implementação
@@ -169,6 +173,14 @@ python main.py --console
 python -m unittest discover -s testes -v
 ```
 
+Ao abrir, o sistema pede o **login multiusuário**: entra-se com o documento e a senha da
+conta, ou cria-se uma conta nova declarando o **papel** dela — Proprietário da fazenda
+(CPF), Fornecedor de insumos (CNPJ) ou Frigorífico (CNPJ). O papel acompanha a conta: o
+login abre direto a área correspondente, sem perguntar "quem está usando", e o cadastro
+do papel nasce semeado no arquivo da conta. Cada conta tem um arquivo de dados próprio;
+ao encerrar a sessão, o fluxo volta ao login, para que outro usuário entre com a conta
+dele.
+
 ## Estrutura do projeto
 
 ```
@@ -182,6 +194,7 @@ Gestao_Rebanho/
 ├── testes/
 │   ├── test_entidades.py       # regras de negócio do domínio
 │   ├── test_casos_de_uso.py    # casos de uso com repositórios em memória
+│   ├── test_contas.py          # multiusuário: contas, índice e migração
 │   └── test_repositorios.py    # persistência em JSON
 └── source/
     ├── domain/
@@ -189,18 +202,26 @@ Gestao_Rebanho/
     │   │   ├── animal.py       # Animal (abstrata), Femea, Macho
     │   │   ├── manejo.py       # Pesagem, Vacinacao (composição de Animal)
     │   │   ├── insumo.py       # Insumo, BaseAlimentacao
+    │   │   ├── conta.py        # Conta de acesso e normalizar_cpf (multiusuário)
     │   │   └── pessoas.py      # Proprietario, Fornecedor, Frigorifico, CompraAnimal
     │   ├── objetos_valor.py    # Brinco, Peso (imutáveis, por valor)
     │   ├── repositorios.py     # contratos de repositório (interfaces abstratas)
     │   └── excecoes.py         # exceções de negócio
     ├── usecases/
     │   ├── casos_de_uso.py     # um caso de uso por classe
+    │   ├── senhas.py           # credencial de acesso: hash PBKDF2 com salt
     │   └── contenedor.py       # contêiner dos casos de uso
     ├── infra/
-    │   └── repositorio_json.py # implementação em JSON (dados.json)
+    │   └── repositorio_json.py # implementação em JSON (dados.json e usuarios.json)
     └── interfaces/
-        ├── interface_tkinter.py # janela principal (Parte 3)
-        └── presenter_console.py # menu de texto, organizado por ator
+        ├── interface_tkinter.py  # entrada gráfica: login → área do papel da conta
+        ├── janela_login.py       # login multiusuário e criação de conta (com papel)
+        ├── janela_autocadastro.py # autocadastro do Usuário (nome, CPF e senha)
+        ├── janela_proprietario.py # área do Proprietário
+        ├── janela_frigorifico.py  # área do Frigorífico
+        ├── janela_fornecedor.py   # área do Fornecedor de Insumos
+        ├── formularios.py         # formulários Label + Entry compartilhados
+        └── presenter_console.py   # login em texto + menu por ator, com credencial
 ```
 
 ## Pilares de POO aplicados
@@ -267,13 +288,57 @@ contrariá-lo:
   o essencial; a data padrão é hoje).
 - **Um único estoque de insumo no comércio**: `ComprarInsumo` e `VenderInsumo` são as duas
   vistas (proprietário/fornecedor) da mesma transação, como no diagrama, sem duplicar lotes.
+- **Entrada por perfil com credencial**: cada conta de acesso declara o papel do ator
+  que ela representa e entra pelo documento do cadastro — o proprietário com CPF **e
+  senha**, o fornecedor e o frigorífico com CNPJ — com o cadastro do papel semeado no
+  arquivo da conta quando ela nasce. O `Autocadastro` do diagrama é o cadastro do
+  Usuário (proprietário); fornecedor e frigorífico ganham o cadastro equivalente no
+  ato da criação da conta e podem corrigi-lo na própria área.
+- **Multiusuário**: cada usuário do sistema tem a própria conta (`Conta`), criada pelo
+  autocadastro multiusuário (`CadastrarConta`) e autenticada no login
+  (`AutenticarConta`) por documento (CPF ou CNPJ) e senha — o documento é reduzido aos
+  dígitos (`normalizar_documento`), então pontuação é só apresentação. O índice de
+  contas (`usuarios.json`, `IndiceContasJson`) guarda nome, documento, papel, credencial
+  da senha e o arquivo de dados de cada um. Contas nascem isoladas: o trabalho de cada
+  papel fica no arquivo da conta (`dados_<documento>.json`) e um usuário nunca enxerga
+  os dados do outro. Ao corrigir o próprio cadastro (`Autocadastro` e os cadastros de
+  fornecedor/frigorífico), o índice de contas é atualizado junto, para que a próxima
+  entrada continue encontrando o usuário; já existe conta com o mesmo documento?
+  `DocumentoDuplicadoError`.
+- **Senha com hash**: a senha do autocadastro nunca é guardada em texto plano —
+  `usecases/senhas.py` gera um hash PBKDF2 com salt aleatório (formato
+  `pbkdf2$iterações$salt$hash`), conferido em tempo constante no login. O domínio
+  enxerga só uma credencial opaca.
+- **Venda de animal em duas vistas**: `VenderAnimal` atende ao Proprietário
+  ("Vender ao frigorífico") e ao Frigorífico ("Comprar animal") — a mesma transação
+  vista pelos dois atores, como já acontecia com os insumos.
+- **Migração do cadastro-padrão**: arquivos antigos com o proprietário padrão
+  ("Fazenda Boa Esperança", CPF zerado) são tratados como sem cadastro, para passarem
+  pelo autocadastro obrigatório do primeiro acesso.
 
 ## Persistência
 
-Os dados são salvos em `dados.json` (criado na raiz do projeto ao executar), em seis
-seções: `animais` (pesagens, vacinas, genealogia, estado reprodutivo, base de alimentação
-e venda), `insumos` (estoque da fazenda), `fornecedor` (catálogo de lotes do fornecedor),
-`bases` (bases de alimentação), `compras` (histórico do frigorífico) e `proprietario`
-(cadastro do autocadastro). Tudo sobrevive entre execuções — inclusive o histórico de
-compras do frigorífico. Arquivos antigos, com as chaves de insumo anteriores
-(`preco_unitario`/`quantidade`), continuam sendo lidos.
+Sistema multiusuário: cada conta tem o **seu próprio arquivo de dados**
+(`dados_<documento>.json`, criado — já com o cadastro do papel semeado — quando a
+conta nasce), com oito seções: `animais`
+(pesagens, vacinas, genealogia, estado reprodutivo, base de alimentação e venda),
+`insumos` (estoque da fazenda), `fornecedor` (catálogo de lotes do fornecedor),
+`fornecedor_cadastro` (cadastro do fornecedor: nome e CNPJ), `bases` (bases de
+alimentação), `compras` (histórico do frigorífico), `frigorifico` (cadastro do
+frigorífico: nome e CNPJ) e `proprietario` (autocadastro: nome, CPF e hash da senha).
+Cada conta usa as seções do papel dela: a do fornecedor guarda o catálogo e o cadastro
+dele, a do frigorífico guarda o cadastro e as compras, a do proprietário guarda o
+rebanho, o estoque, as bases e os cadastros dos parceiros com quem comercializa.
+O índice de contas fica em `usuarios.json` (seção `contas`: nome, documento, papel,
+credencial da senha — só o hash — e arquivo de dados de cada usuário).
+
+Tudo sobrevive entre execuções — inclusive o histórico de compras do frigorífico.
+Arquivos antigos, com as chaves de insumo anteriores (`preco_unitario`/`quantidade`),
+continuam sendo lidos; o cadastro-padrão antigo do proprietário é tratado como sem
+cadastro, e cadastros antigos sem senha voltam ao autocadastro do primeiro acesso.
+
+**Migração do sistema de um usuário só**: na primeira execução multiusuário, se ainda
+não existe `usuarios.json` mas há um cadastro válido em `dados.json`, esse cadastro se
+torna a primeira conta do índice — papel Proprietário, com a credencial que já estava
+no arquivo — e a conta continua apontando para o mesmo `dados.json`: nada é perdido nem
+renomeado. Contas criadas de então em diante ganham arquivo próprio.

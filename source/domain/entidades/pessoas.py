@@ -20,9 +20,10 @@ from source.domain.excecoes import (
 class Proprietario:
     """Proprietário da propriedade rural, quem mais usa o sistema."""
 
-    def __init__(self, nome: str, cpf: str) -> None:
+    def __init__(self, nome: str, cpf: str, senha: str = "") -> None:
         self.__nome = nome
         self.__cpf = cpf
+        self.__senha = senha
         self.__animais: List[Animal] = []
         self.__bases: List[BaseAlimentacao] = []
 
@@ -34,12 +35,23 @@ class Proprietario:
     def cpf(self) -> str:
         return self.__cpf
 
-    def atualizar_cadastro(self, nome: str, cpf: str) -> None:
-        """Autocadastro do usuário: define (ou corrige) nome e CPF."""
-        if not nome.strip() or not cpf.strip():
-            raise RegraNegocioViolation("Nome e CPF são obrigatórios no autocadastro.")
+    @property
+    def senha(self) -> str:
+        """Credencial de acesso do autocadastro (hash, nunca texto plano)."""
+        return self.__senha
+
+    def atualizar_cadastro(self, nome: str, cpf: str, senha: str) -> None:
+        """Autocadastro do usuário: define (ou corrige) nome, CPF e senha.
+
+        A senha chega já como credencial (hash gerado pela camada de
+        aplicação); o domínio só exige que ela exista."""
+        if not nome.strip() or not cpf.strip() or not senha.strip():
+            raise RegraNegocioViolation(
+                "Nome, CPF e senha são obrigatórios no autocadastro."
+            )
         self.__nome = nome.strip()
         self.__cpf = cpf.strip()
+        self.__senha = senha.strip()
 
     def adicionar_animal(self, animal: Animal) -> None:
         self.__animais.append(animal)
@@ -73,6 +85,13 @@ class Fornecedor:
     @property
     def cnpj(self) -> str:
         return self.__cnpj
+
+    def atualizar_cadastro(self, nome: str, cnpj: str) -> None:
+        """Cadastro no primeiro acesso: define (ou corrige) nome e CNPJ."""
+        if not nome.strip() or not cnpj.strip():
+            raise RegraNegocioViolation("Nome e CNPJ são obrigatórios no cadastro.")
+        self.__nome = nome.strip()
+        self.__cnpj = cnpj.strip()
 
     def cadastrar_insumo(self, insumo: Insumo) -> None:
         """Agrega o insumo ao catálogo do fornecedor, sem duplicar."""
@@ -143,6 +162,13 @@ class Frigorifico:
     @property
     def cnpj(self) -> str:
         return self.__cnpj
+
+    def atualizar_cadastro(self, nome: str, cnpj: str) -> None:
+        """Cadastro no primeiro acesso: define (ou corrige) nome e CNPJ."""
+        if not nome.strip() or not cnpj.strip():
+            raise RegraNegocioViolation("Nome e CNPJ são obrigatórios no cadastro.")
+        self.__nome = nome.strip()
+        self.__cnpj = cnpj.strip()
 
     def comprar_animal(
         self, animal: Animal, valor: float, data: Optional[date] = None
