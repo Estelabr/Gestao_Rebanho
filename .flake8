@@ -1,0 +1,6 @@
+# Configuração do flake8 para o projeto.
+# Limite de 100 caracteres por linha (PEP 8 permite até 99 para equipes);
+# a configuração vale para o VS Code também, que lê este arquivo.
+[flake8]
+max-line-length = 100
+exclude = __pycache__, .git
