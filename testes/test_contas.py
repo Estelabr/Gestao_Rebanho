@@ -418,8 +418,6 @@ class TestFonteDeCadastros(unittest.TestCase):
         self.assertEqual(cadastro["cnpj"], "333")
 
     def test_criar_com_papel_desconhecido_falha_sem_criar_arquivo(self):
-        """Antes o papel desconhecido devolvia o caminho de um arquivo que
-        nunca era criado, e o erro só aparecia no login seguinte."""
         with self.assertRaises(RegraNegocioViolation):
             self.__fonte.criar("veterinario", "Fulano", "444")
         self.assertFalse(os.path.exists(self.__fonte.caminho_de("444")))
