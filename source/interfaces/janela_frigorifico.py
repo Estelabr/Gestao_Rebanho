@@ -92,6 +92,7 @@ class JanelaFrigorifico(tk.Toplevel):
         quadro_lista = tk.Frame(quadro)
         quadro_lista.pack(fill="both", expand=True)
         self.__disponiveis = tk.Listbox(quadro_lista, height=7)
+        self.__brincos_disponiveis: List[str] = []
         self.__disponiveis.pack(side="left", fill="both", expand=True)
         barra = tk.Scrollbar(quadro_lista, command=self.__disponiveis.yview)
         barra.pack(side="right", fill="y")
@@ -111,7 +112,9 @@ class JanelaFrigorifico(tk.Toplevel):
     # ------------------------------------------------------------------
     def __atualizar(self) -> None:
         self.__disponiveis.delete(0, "end")
-        for animal in self.__casos.identificar_para_venda.executar():
+        disponiveis = self.__casos.identificar_para_venda.executar()
+        self.__brincos_disponiveis = [animal.brinco.valor for animal in disponiveis]
+        for animal in disponiveis:
             self.__disponiveis.insert(
                 "end",
                 f"{animal} - {animal.peso_atual():.1f} kg "
@@ -128,7 +131,7 @@ class JanelaFrigorifico(tk.Toplevel):
                 "Compra", "Selecione um animal na lista de disponíveis.", parent=self
             )
             return
-        brinco = self.__disponiveis.get(selecao[0]).split(" - ")[0]
+        brinco = self.__brincos_disponiveis[selecao[0]]
 
         def confirmar(valores: List[str]) -> None:
             # Mesma transação da venda do proprietário, vista pelo frigorífico.
