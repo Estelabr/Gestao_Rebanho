@@ -160,6 +160,9 @@ class JanelaProprietario(tk.Toplevel):
         quadro_lista = tk.Frame(quadro)
         quadro_lista.pack(fill="both", expand=True)
         self.__lista = tk.Listbox(quadro_lista, height=8)
+        # Brinco de cada linha da lista, na mesma ordem: o texto da linha
+        # é só apresentação e pode mudar de formato.
+        self.__brincos: List[str] = []
         self.__lista.pack(side="left", fill="both", expand=True)
         barra = tk.Scrollbar(quadro_lista, command=self.__lista.yview)
         barra.pack(side="right", fill="y")
@@ -202,11 +205,13 @@ class JanelaProprietario(tk.Toplevel):
         selecao = self.__lista.curselection()
         if not selecao:
             return None
-        return self.__lista.get(selecao[0]).split(" - ")[0]
+        return self.__brincos[selecao[0]]
 
     def __atualizar_lista(self) -> None:
         self.__lista.delete(0, "end")
-        for animal in self.__casos.animais():
+        animais = self.__casos.animais()
+        self.__brincos = [animal.brinco.valor for animal in animais]
+        for animal in animais:
             peso = f"{animal.peso_atual():.1f} kg" if animal.pesagens else "sem pesagem"
             estado = "vendido" if animal.vendido else "no rebanho"
             self.__lista.insert("end", f"{animal} - {peso} - {estado}")
