@@ -174,8 +174,7 @@ class Frigorifico:
     ) -> CompraAnimal:
         """Regra de negócio 1: o frigorífico só compra animais que podem ser
         vendidos (peso mínimo de abate atingido). O próprio animal é quem
-        valida e se marca como vendido: marcar_vendido() distingue animal já
-        vendido de animal abaixo do peso e dá a mensagem certa para cada um."""
+        valida e se marca como vendido."""
         animal.marcar_vendido()
         compra = CompraAnimal(data or date.today(), animal, valor)
         self.__compras.append(compra)
