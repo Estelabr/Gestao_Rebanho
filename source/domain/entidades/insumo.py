@@ -4,6 +4,8 @@ from typing import List, Tuple
 
 from source.domain.excecoes import EstoqueInsuficienteError, QuantidadeInvalidaError
 
+DIAS_NO_MES = 30
+
 
 class Insumo:
     """Insumo da fazenda (ração, vacina, medicamento) com o seu estoque."""
@@ -108,7 +110,7 @@ class BaseAlimentacao:
                 "A quantidade de animais não pode ser negativa."
             )
         custo_diario = sum(insumo.preco * quantidade for insumo, quantidade in self.__itens)
-        return custo_diario * 30.0 * qtd_animais
+        return custo_diario * DIAS_NO_MES * qtd_animais
 
     def __str__(self) -> str:
         return f"{self.__nome} - {len(self.__itens)} insumo(s)"

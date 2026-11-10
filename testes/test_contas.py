@@ -21,6 +21,7 @@ from source.domain.excecoes import (
     RegraNegocioViolation,
 )
 from source.domain.repositorios import (
+    CriadorDeArquivos,
     RepositorioContas,
     RepositorioFornecedor,
     RepositorioFrigorifico,
@@ -66,7 +67,7 @@ class RepositorioContasMemoria(RepositorioContas):
         pass
 
 
-class CriadorDeArquivosMemoria:
+class CriadorDeArquivosMemoria(CriadorDeArquivos):
     """Dobra de teste: registra a criação e devolve um caminho fictício."""
 
     def __init__(self) -> None:
@@ -415,6 +416,11 @@ class TestFonteDeCadastros(unittest.TestCase):
         cadastro = _ler_json(arquivo)["frigorifico"]
         self.assertEqual(cadastro["nome"], "Frigol")
         self.assertEqual(cadastro["cnpj"], "333")
+
+    def test_criar_com_papel_desconhecido_falha_sem_criar_arquivo(self):
+        with self.assertRaises(RegraNegocioViolation):
+            self.__fonte.criar("veterinario", "Fulano", "444")
+        self.assertFalse(os.path.exists(self.__fonte.caminho_de("444")))
 
 
 def _ler_json(caminho: str) -> dict:

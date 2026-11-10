@@ -159,3 +159,11 @@ class RepositorioContas(ABC):
     @abstractmethod
     def salvar(self) -> None:
         """Persiste o estado atual do índice de contas."""
+
+
+class CriadorDeArquivos(ABC):
+    """Contrato para criar o arquivo de dados de uma conta nova."""
+
+    @abstractmethod
+    def criar(self, papel: str, nome: str, documento: str) -> str:
+        """Cria o arquivo já com o cadastro do papel e devolve o caminho."""

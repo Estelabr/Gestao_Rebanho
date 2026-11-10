@@ -20,6 +20,7 @@ from source.interfaces.janela_fornecedor import JanelaFornecedor
 from source.interfaces.janela_frigorifico import JanelaFrigorifico
 from source.interfaces.janela_login import JanelaLogin
 from source.interfaces.janela_proprietario import JanelaProprietario
+from source.usecases.casos_de_uso import AutenticarConta, CadastrarConta
 from source.usecases.contenedor import CasosDeUso
 
 _AREAS = {
@@ -30,8 +31,8 @@ _AREAS = {
 
 
 def iniciar_interface(
-    cadastrar_conta,
-    autenticar_conta,
+    cadastrar_conta: CadastrarConta,
+    autenticar_conta: AutenticarConta,
     montar: Callable[[Conta], CasosDeUso],
 ) -> None:
     """Abre o login e, com a conta autenticada, a área do papel dela.
