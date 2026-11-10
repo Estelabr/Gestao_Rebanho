@@ -3,3 +3,7 @@ __pycache__/
 dados.json
 dados_*.json
 usuarios.json
+.venv/
+.vscode/
+.idea/
+*.egg-info/

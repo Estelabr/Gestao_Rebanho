@@ -1,8 +1,8 @@
 # Sistema de Gestão de Rebanho
 
 Trabalho de POO I — tema **Gestão de Rebanho**. Sistema **multiusuário** para controlar o
-rebanho de uma propriedade rural de gado de corte: cada usuário cria a sua conta (CPF e
-senha) e cuida do rebanho dela — cadastro de animais, acompanhamento de peso e vacinas,
+rebanho de uma propriedade rural de gado de corte: cada usuário cria a sua conta (documento
+e senha) e cuida do rebanho dela — cadastro de animais, acompanhamento de peso e vacinas,
 gestão de nutrição, inseminação e compra de insumos. Os dados de um usuário ficam isolados
 dos dos outros.
 
@@ -157,7 +157,8 @@ caracteres por linha, aceito pelo PEP 8 para equipes). Para rodar:
 python -m flake8 source testes main.py
 ```
 
-Se o flake8 não estiver instalado: `pip install --user flake8`. O VS Code lê o arquivo
+Se o flake8 não estiver instalado: `python -m pip install --user -r requirements-dev.txt`
+(instala a versão usada pelo projeto). O VS Code lê o arquivo
 `.flake8` automaticamente, então o mesmo limite vale para os avisos do editor.
 
 ## Como executar
@@ -289,8 +290,8 @@ contrariá-lo:
 - **Um único estoque de insumo no comércio**: `ComprarInsumo` e `VenderInsumo` são as duas
   vistas (proprietário/fornecedor) da mesma transação, como no diagrama, sem duplicar lotes.
 - **Entrada por perfil com credencial**: cada conta de acesso declara o papel do ator
-  que ela representa e entra pelo documento do cadastro — o proprietário com CPF **e
-  senha**, o fornecedor e o frigorífico com CNPJ — com o cadastro do papel semeado no
+  que ela representa e entra pelo documento do cadastro **e senha** — o proprietário
+  com CPF, o fornecedor e o frigorífico com CNPJ — com o cadastro do papel semeado no
   arquivo da conta quando ela nasce. O `Autocadastro` do diagrama é o cadastro do
   Usuário (proprietário); fornecedor e frigorífico ganham o cadastro equivalente no
   ato da criação da conta e podem corrigi-lo na própria área.
@@ -305,7 +306,7 @@ contrariá-lo:
   fornecedor/frigorífico), o índice de contas é atualizado junto, para que a próxima
   entrada continue encontrando o usuário; já existe conta com o mesmo documento?
   `DocumentoDuplicadoError`.
-- **Senha com hash**: a senha do autocadastro nunca é guardada em texto plano —
+- **Senha com hash**: a senha de cada conta nunca é guardada em texto plano —
   `usecases/senhas.py` gera um hash PBKDF2 com salt aleatório (formato
   `pbkdf2$iterações$salt$hash`), conferido em tempo constante no login. O domínio
   enxerga só uma credencial opaca.
