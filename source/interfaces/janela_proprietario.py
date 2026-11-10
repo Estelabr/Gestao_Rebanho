@@ -160,8 +160,6 @@ class JanelaProprietario(tk.Toplevel):
         quadro_lista = tk.Frame(quadro)
         quadro_lista.pack(fill="both", expand=True)
         self.__lista = tk.Listbox(quadro_lista, height=8)
-        # Brinco de cada linha da lista, na mesma ordem: o texto da linha
-        # é só apresentação e pode mudar de formato.
         self.__brincos: List[str] = []
         self.__lista.pack(side="left", fill="both", expand=True)
         barra = tk.Scrollbar(quadro_lista, command=self.__lista.yview)

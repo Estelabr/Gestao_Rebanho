@@ -92,8 +92,6 @@ class JanelaFrigorifico(tk.Toplevel):
         quadro_lista = tk.Frame(quadro)
         quadro_lista.pack(fill="both", expand=True)
         self.__disponiveis = tk.Listbox(quadro_lista, height=7)
-        # Brinco de cada linha da lista, na mesma ordem: o texto da linha
-        # é só apresentação e pode mudar de formato.
         self.__brincos_disponiveis: List[str] = []
         self.__disponiveis.pack(side="left", fill="both", expand=True)
         barra = tk.Scrollbar(quadro_lista, command=self.__disponiveis.yview)
