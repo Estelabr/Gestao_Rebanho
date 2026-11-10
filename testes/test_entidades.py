@@ -69,8 +69,25 @@ class TestRegraVenda(unittest.TestCase):
         self.assertEqual(compra.animal.brinco.valor, "M1")
         self.assertTrue(macho.vendido)
         self.assertIn("M1", compra.resumo())
+
+    def test_frigorifico_nao_compra_animal_ja_vendido(self):
+        """Regressão: a segunda compra acusava peso insuficiente, embora o
+        animal tivesse peso de abate; o motivo certo é a venda anterior."""
+        frigorifico = Frigorifico("Frigorífico Pampa Sul", "12.345.678/0001-90")
+        macho = Macho("M1", date(2024, 1, 1), "Nelore")
+        macho.registrar_pesagem(500.0, date(2026, 1, 1))
+        frigorifico.comprar_animal(macho, 2500.0)
+        with self.assertRaises(AnimalVendidoError):
+            frigorifico.comprar_animal(macho, 2500.0)
+        self.assertEqual(len(frigorifico.historico_compras()), 1)
+
+    def test_frigorifico_nao_compra_animal_abaixo_do_peso(self):
+        frigorifico = Frigorifico("Frigorífico Pampa Sul", "12.345.678/0001-90")
+        macho = Macho("M1", date(2024, 1, 1), "Nelore")
+        macho.registrar_pesagem(300.0, date(2026, 1, 1))
         with self.assertRaises(PesoInsuficienteError):
             frigorifico.comprar_animal(macho, 2500.0)
+        self.assertEqual(frigorifico.historico_compras(), ())
 
 
 class TestRegraInseminacao(unittest.TestCase):

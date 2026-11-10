@@ -12,7 +12,6 @@ from source.domain.entidades.animal import Animal
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
 from source.domain.excecoes import (
     InsumoNaoEncontradoError,
-    PesoInsuficienteError,
     RegraNegocioViolation,
 )
 
@@ -175,12 +174,8 @@ class Frigorifico:
     ) -> CompraAnimal:
         """Regra de negócio 1: o frigorífico só compra animais que podem ser
         vendidos (peso mínimo de abate atingido). O próprio animal é quem
-        valida e se marca como vendido."""
-        if not animal.pode_vender():
-            raise PesoInsuficienteError(
-                f"Animal {animal.brinco.valor} não pode ser vendido: o mínimo de "
-                f"abate é {animal.peso_minimo_abate():.1f} kg."
-            )
+        valida e se marca como vendido: marcar_vendido() distingue animal já
+        vendido de animal abaixo do peso e dá a mensagem certa para cada um."""
         animal.marcar_vendido()
         compra = CompraAnimal(data or date.today(), animal, valor)
         self.__compras.append(compra)
