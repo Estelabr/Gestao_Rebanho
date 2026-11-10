@@ -27,6 +27,7 @@ from source.domain.excecoes import (
     RegraNegocioViolation,
 )
 from source.domain.repositorios import (
+    CriadorDeArquivos,
     RepositorioAnimais,
     RepositorioBases,
     RepositorioCompras,
@@ -499,7 +500,7 @@ class CadastrarConta:
     def __init__(
         self,
         repositorio_contas: RepositorioContas,
-        criador_de_arquivos,
+        criador_de_arquivos: CriadorDeArquivos,
     ) -> None:
         """Recebe o índice de contas e o criador que semeia o arquivo de
         dados da conta nova (implementado na infraestrutura)."""

@@ -38,8 +38,9 @@ from source.domain.entidades.animal import Animal, Femea, Macho
 from source.domain.entidades.conta import Conta, normalizar_documento
 from source.domain.entidades.insumo import BaseAlimentacao, Insumo
 from source.domain.entidades.pessoas import CompraAnimal, Fornecedor, Frigorifico, Proprietario
-from source.domain.excecoes import AnimalNaoEncontradoError
+from source.domain.excecoes import AnimalNaoEncontradoError, RegraNegocioViolation
 from source.domain.repositorios import (
+    CriadorDeArquivos,
     RepositorioAnimais,
     RepositorioBases,
     RepositorioCompras,
@@ -480,7 +481,7 @@ class IndiceContasJson(RepositorioContas):
         self.__arquivo.salvar(dados)
 
 
-class FonteDeCadastros:
+class FonteDeCadastros(CriadorDeArquivos):
     """Cria o arquivo de dados de uma conta nova, já com o cadastro do
     papel dela semeado nele — o proprietário no 'proprietario', o
     fornecedor no 'fornecedor_cadastro', o frigorífico no 'frigorifico'.
@@ -502,4 +503,6 @@ class FonteDeCadastros:
             RepositorioFornecedorJson(arquivo).salvar(Fornecedor(nome, documento))
         elif papel == "frigorifico":
             RepositorioFrigorificoJson(arquivo).salvar(Frigorifico(nome, documento))
+        else:
+            raise RegraNegocioViolation(f"Papel desconhecido: {papel}.")
         return caminho

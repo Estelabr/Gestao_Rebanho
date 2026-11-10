@@ -4,6 +4,9 @@ from typing import List, Tuple
 
 from source.domain.excecoes import EstoqueInsuficienteError, QuantidadeInvalidaError
 
+# O custo mensal usa o mês comercial de 30 dias.
+DIAS_NO_MES = 30
+
 
 class Insumo:
     """Insumo da fazenda (ração, vacina, medicamento) com o seu estoque."""
@@ -102,13 +105,13 @@ class BaseAlimentacao:
 
     def custo_mensal(self, qtd_animais: int) -> float:
         """Custo mensal da base para alimentar uma quantidade de animais:
-        soma de (quantidade x preço do insumo) por dia, x 30 dias."""
+        soma de (quantidade x preço do insumo) por dia, x DIAS_NO_MES."""
         if qtd_animais < 0:
             raise QuantidadeInvalidaError(
                 "A quantidade de animais não pode ser negativa."
             )
         custo_diario = sum(insumo.preco * quantidade for insumo, quantidade in self.__itens)
-        return custo_diario * 30.0 * qtd_animais
+        return custo_diario * DIAS_NO_MES * qtd_animais
 
     def __str__(self) -> str:
         return f"{self.__nome} - {len(self.__itens)} insumo(s)"
