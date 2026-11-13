@@ -130,7 +130,9 @@ interfaces ──► usecases ──► domain ◄── infra
   `Femea`, `Macho`, `Pesagem`, `Vacinacao`, `Insumo`, `BaseAlimentacao`, `Proprietario`,
   `Fornecedor`, `Frigorifico`, `CompraAnimal`), objetos de valor (`Brinco`, `Peso`,
   imutáveis e comparáveis por valor), exceções de negócio e os contratos de repositório
-  (`repositorios.py`). As duas regras de negócio vivem aqui:
+  (`repositorios.py`). Os domain services (`servicos/`) são classes sem estado —
+  `ValidarCpf` e `ValidarCnpj` —, usadas por casos de uso e entidades sem precisar
+  instanciar. As regras de negócio vivem aqui:
   `pode_vender()`/`marcar_vendido()` e `pode_inseminar()`/`inseminar()`; `baixar_estoque()`
   é exercitada de verdade na venda do fornecedor.
 - **`source/usecases/`** — camada de aplicação: um caso de uso por classe, com nomes que
@@ -194,6 +196,8 @@ Gestao_Rebanho/
 │   └── justificativa_teorica.pdf
 ├── testes/
 │   ├── test_entidades.py       # regras de negócio do domínio
+│   ├── test_validar_cpf.py     # domain service de validação do CPF
+│   ├── test_validar_cnpj.py    # domain service de validação do CNPJ
 │   ├── test_casos_de_uso.py    # casos de uso com repositórios em memória
 │   ├── test_contas.py          # multiusuário: contas, índice e migração
 │   └── test_repositorios.py    # persistência em JSON
@@ -206,6 +210,9 @@ Gestao_Rebanho/
     │   │   ├── conta.py        # Conta de acesso e normalizar_cpf (multiusuário)
     │   │   └── pessoas.py      # Proprietario, Fornecedor, Frigorifico, CompraAnimal
     │   ├── objetos_valor.py    # Brinco, Peso (imutáveis, por valor)
+    │   ├── servicos/           # domain services (classes sem estado)
+    │   │   ├── validar_cpf.py  # ValidarCpf: dígito verificador do CPF
+    │   │   └── validar_cnpj.py # ValidarCnpj: dígito verificador do CNPJ
     │   ├── repositorios.py     # contratos de repositório (interfaces abstratas)
     │   └── excecoes.py         # exceções de negócio
     ├── usecases/
@@ -249,6 +256,15 @@ Gestao_Rebanho/
    é ela quem valida a venda do fornecedor antes da mercadoria chegar à fazenda.
 4. **Parto**: só fêmea prenhe tem parto; `registrar_parto(brinco_filho, macho)` cria o
    bezerro já vinculado à genealogia (mãe e touro da inseminação) e o devolve.
+5. **Documento do cadastro (CPF/CNPJ)**: todo documento passado aos casos de uso de
+   cadastro passa pelos domain services `ValidarCpf.validar()` e `ValidarCnpj.validar()`
+   (`source/domain/servicos/`), que conferem o **dígito verificador** pelo módulo 11 —
+   o mesmo cálculo da Receita Federal. O CPF precisa ter 11 dígitos e o CNPJ 14, com os
+   pesos certos; dígitos todos iguais (ex.: `111.111.111-11`) e documentos com DV
+   inválido são rejeitados com `CPFInvalidoError`/`CNPJInvalidoError`. A pontuação
+   (pontos, barra e hífen) é apresentação, não conteúdo: o serviço reduz o documento aos
+   dígitos e o devolve normalizado, para que o índice de contas nunca guarde duas formas
+   do mesmo documento.
 
 ## Dos diagramas ao código
 
@@ -278,6 +294,15 @@ Cada bolha do diagrama de casos de uso é uma classe em `source/usecases/casos_d
 O código segue o desenho entregue; alguns recursos internos vão além dele, sem
 contrariá-lo:
 
+- **Validação de documento por domain services**: `ValidarCpf` e `ValidarCnpj`
+  (`source/domain/servicos/`) são classes sem estado, com métodos estáticos, que
+  conferem o dígito verificador do CPF (11 dígitos) e do CNPJ (14 dígitos) pelo
+  módulo 11 — o cálculo da Receita Federal. Os casos de uso de cadastro e de criação
+  de conta chamam os serviços antes de qualquer gravação: documento com DV inválido,
+  dígitos repetidos ou tamanho errado é rejeitado com `CPFInvalidoError`/
+  `CNPJInvalidoError`, e o cadastro não é salvo. A pontuação é ignorada: o serviço
+  devolve o documento só com dígitos, então `529.982.247-25` e `52998224725` são a
+  mesma conta.
 - **Objetos de valor** `Brinco` e `Peso` (imutáveis, comparáveis por valor) e a
   hierarquia `RegraNegocioViolation` de exceções de negócio.
 - **`estoque` como float** em `Insumo` (o diagrama traz `int`; ração e sal são fracionados).

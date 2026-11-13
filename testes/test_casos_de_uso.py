@@ -16,6 +16,8 @@ from source.domain.excecoes import (
     BaseDuplicadaError,
     BaseNaoEncontradaError,
     BrincoDuplicadoError,
+    CNPJInvalidoError,
+    CPFInvalidoError,
     EstoqueInsuficienteError,
     InseminacaoInvalidaError,
     InsumoNaoEncontradoError,
@@ -206,9 +208,9 @@ class TestCadastrarAnimal(unittest.TestCase):
 class TestRegistrarPesagemEVacinacao(unittest.TestCase):
     def setUp(self) -> None:
         self.repositorio = RepositorioAnimaisMemoria()
-        CadastrarAnimal(self.repositorio, Proprietario("Fulano", "000.000.000-00")).executar(
-            "F1", date(2024, 1, 1), "Nelore", "femea"
-        )
+        CadastrarAnimal(
+            self.repositorio, Proprietario("Fulano", "000.000.000-00")
+        ).executar("F1", date(2024, 1, 1), "Nelore", "femea")
         self.pesagem = RegistrarPesagem(self.repositorio)
         self.vacinacao = RegistrarVacinacao(self.repositorio)
 
@@ -235,7 +237,9 @@ class TestRegistrarPesagemEVacinacao(unittest.TestCase):
 class TestInseminarFemea(unittest.TestCase):
     def setUp(self) -> None:
         self.repositorio = RepositorioAnimaisMemoria()
-        cadastrar = CadastrarAnimal(self.repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            self.repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F1", date(2023, 1, 1), "Nelore", "femea")
         cadastrar.executar("M1", date(2022, 1, 1), "Nelore", "macho")
         cadastrar.executar("M2", date(2022, 1, 1), "Nelore", "macho")
@@ -250,7 +254,9 @@ class TestInseminarFemea(unittest.TestCase):
             self.inseminar.executar("M1", "M2")
 
     def test_inseminar_com_touro_femea_e_bloqueado(self):
-        cadastrar = CadastrarAnimal(self.repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            self.repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F2", date(2023, 1, 1), "Nelore", "femea")
         with self.assertRaises(InseminacaoInvalidaError):
             self.inseminar.executar("F1", "F2")
@@ -294,7 +300,9 @@ class TestConsultarGenetica(unittest.TestCase):
         cadastrar.executar("F1", date(2021, 1, 1), "Nelore", "femea")
         cadastrar.executar("T1", date(2020, 1, 1), "Nelore", "macho")
         InseminarFemea(self.repositorio).executar("F1", "T1")
-        RegistrarParto(self.repositorio, self.proprietario).executar("F1", "F2", macho=True)
+        RegistrarParto(self.repositorio, self.proprietario).executar(
+            "F1", "F2", macho=True
+        )
         self.genetica = ConsultarGenetica(self.repositorio)
 
     def test_genetica_do_bezerro_mostra_mae_e_pai(self):
@@ -314,7 +322,9 @@ class TestConsultarGenetica(unittest.TestCase):
 class TestVenderAnimal(unittest.TestCase):
     def test_vender_animal_com_peso_suficiente(self):
         repositorio = RepositorioAnimaisMemoria()
-        cadastrar = CadastrarAnimal(repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F1", date(2023, 1, 1), "Nelore", "femea")
         RegistrarPesagem(repositorio).executar("F1", 400.0, date(2026, 1, 1))
 
@@ -329,21 +339,25 @@ class TestVenderAnimal(unittest.TestCase):
 
     def test_vender_animal_abaixo_do_peso_e_bloqueado(self):
         repositorio = RepositorioAnimaisMemoria()
-        cadastrar = CadastrarAnimal(repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F1", date(2025, 1, 1), "Nelore", "femea")
         RegistrarPesagem(repositorio).executar("F1", 200.0, date(2026, 1, 1))
 
         frigorifico = Frigorifico("Frigorífico Pampa Sul", "12.345.678/0001-90")
         with self.assertRaises(PesoInsuficienteError):
-            VenderAnimal(repositorio, frigorifico, RepositorioComprasMemoria()).executar(
-                "F1", 2500.0
-            )
+            VenderAnimal(
+                repositorio, frigorifico, RepositorioComprasMemoria()
+            ).executar("F1", 2500.0)
 
 
 class TestIdentificarAnimaisParaVenda(unittest.TestCase):
     def test_lista_apenas_os_animais_prontos_para_venda(self):
         repositorio = RepositorioAnimaisMemoria()
-        cadastrar = CadastrarAnimal(repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F1", date(2023, 1, 1), "Nelore", "femea")
         cadastrar.executar("M1", date(2024, 1, 1), "Nelore", "macho")
         RegistrarPesagem(repositorio).executar("F1", 400.0, date(2026, 1, 1))
@@ -357,14 +371,16 @@ class TestIdentificarAnimaisParaVenda(unittest.TestCase):
 class TestHistoricoCompras(unittest.TestCase):
     def test_historico_mostra_as_compras_do_frigorifico(self):
         repositorio = RepositorioAnimaisMemoria()
-        cadastrar = CadastrarAnimal(repositorio, Proprietario("Fulano", "000.000.000-00"))
+        cadastrar = CadastrarAnimal(
+            repositorio, Proprietario("Fulano", "000.000.000-00")
+        )
         cadastrar.executar("F1", date(2023, 1, 1), "Nelore", "femea")
         RegistrarPesagem(repositorio).executar("F1", 400.0, date(2026, 1, 1))
 
         frigorifico = Frigorifico("Frigorífico Pampa Sul", "12.345.678/0001-90")
-        VenderAnimal(
-            repositorio, frigorifico, RepositorioComprasMemoria()
-        ).executar("F1", 2500.0)
+        VenderAnimal(repositorio, frigorifico, RepositorioComprasMemoria()).executar(
+            "F1", 2500.0
+        )
 
         historico = HistoricoCompras(frigorifico).executar()
         self.assertEqual(len(historico), 1)
@@ -384,15 +400,21 @@ class TestNutricao(unittest.TestCase):
         CadastrarAnimal(self.repositorio_animais, self.proprietario).executar(
             "F1", date(2024, 1, 1), "Nelore", "femea"
         )
-        self.repositorio_insumos.adicionar(Insumo("Ração 20%", "Nutricional", 1000.0, 1.80))
+        self.repositorio_insumos.adicionar(
+            Insumo("Ração 20%", "Nutricional", 1000.0, 1.80)
+        )
         self.criar_base = CriarBaseAlimentacao(
             self.repositorio_bases, self.repositorio_insumos, self.proprietario
         )
-        self.definir = DefinirAlimentacao(self.repositorio_animais, self.repositorio_bases)
+        self.definir = DefinirAlimentacao(
+            self.repositorio_animais, self.repositorio_bases
+        )
         self.consultar = ConsultarAlimentacao(self.repositorio_animais)
 
     def test_criar_base_e_definir_alimentacao_do_animal(self):
-        base = self.criar_base.executar("Engorda", "Ração de engorda", [("Ração 20%", 2.5)])
+        base = self.criar_base.executar(
+            "Engorda", "Ração de engorda", [("Ração 20%", 2.5)]
+        )
         self.assertEqual(base.consumo_diario_kg(), 2.5)
         self.assertIn(base, self.proprietario.listar_bases())
 
@@ -481,35 +503,45 @@ class TestAutocadastro(unittest.TestCase):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
         repositorio = RepositorioProprietarioMemoria()
         Autocadastro(proprietario, repositorio).executar(
-            "Maria", "123.456.789-00", "s3cr3t"
+            "Maria", "529.982.247-25", "s3cr3t"
         )
         self.assertEqual(proprietario.nome, "Maria")
         salvo = repositorio.carregar()
-        self.assertEqual(salvo.cpf, "123.456.789-00")
+        self.assertEqual(salvo.cpf, "529.982.247-25")
 
     def test_a_senha_e_guardada_como_hash_nunca_em_texto_plano(self):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
         repositorio = RepositorioProprietarioMemoria()
         Autocadastro(proprietario, repositorio).executar(
-            "Maria", "123.456.789-00", "s3cr3t"
+            "Maria", "529.982.247-25", "s3cr3t"
         )
         credencial = repositorio.carregar().senha
         self.assertNotIn("s3cr3t", credencial)
         self.assertTrue(conferir("s3cr3t", credencial))
 
-    def test_autocadastro_com_dados_vazios_e_bloqueado(self):
+    def test_autocadastro_com_cpf_invalido_e_bloqueado(self):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
-        with self.assertRaises(RegraNegocioViolation):
-            Autocadastro(
-                proprietario, RepositorioProprietarioMemoria()
-            ).executar("", "", "s3cr3t")
+        repositorio = RepositorioProprietarioMemoria()
+        with self.assertRaises(CPFInvalidoError):
+            Autocadastro(proprietario, repositorio).executar(
+                "Maria", "123.456.789-00", "s3cr3t"
+            )
+        # Nada é salvo quando o documento não passa na validação.
+        self.assertIsNone(repositorio.carregar())
 
     def test_autocadastro_sem_senha_e_bloqueado(self):
         proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
         with self.assertRaises(RegraNegocioViolation):
-            Autocadastro(
-                proprietario, RepositorioProprietarioMemoria()
-            ).executar("Maria", "123.456.789-00", "   ")
+            Autocadastro(proprietario, RepositorioProprietarioMemoria()).executar(
+                "Maria", "529.982.247-25", "   "
+            )
+
+    def test_autocadastro_com_dados_vazios_e_bloqueado(self):
+        proprietario = Proprietario("Fazenda Boa Esperança", "000.000.000-00")
+        with self.assertRaises(RegraNegocioViolation):
+            Autocadastro(proprietario, RepositorioProprietarioMemoria()).executar(
+                "", "", "s3cr3t"
+            )
 
 
 class TestCadastroDeOrganizacoes(unittest.TestCase):
@@ -528,23 +560,41 @@ class TestCadastroDeOrganizacoes(unittest.TestCase):
         )
 
     def test_cadastrar_fornecedor_preenche_e_salva_o_cadastro(self):
-        self.cadastrar_fornecedor.executar("Agropecuária Central", "12.345.678/0001-90")
+        self.cadastrar_fornecedor.executar("Agropecuária Central", "12.345.678/0001-95")
         salvo = self.repositorio_fornecedor.carregar()
         self.assertEqual(salvo.nome, "Agropecuária Central")
-        self.assertEqual(salvo.cnpj, "12.345.678/0001-90")
+        self.assertEqual(salvo.cnpj, "12.345.678/0001-95")
         self.assertEqual(self.fornecedor.nome, "Agropecuária Central")
 
     def test_cadastrar_frigorifico_preenche_e_salva_o_cadastro(self):
-        self.cadastrar_frigorifico.executar("Frigorífico Pampa Sul", "98.765.432/0001-10")
+        self.cadastrar_frigorifico.executar(
+            "Frigorífico Pampa Sul", "98.765.432/0001-98"
+        )
         salvo = self.repositorio_frigorifico.carregar()
         self.assertEqual(salvo.nome, "Frigorífico Pampa Sul")
-        self.assertEqual(salvo.cnpj, "98.765.432/0001-10")
+        self.assertEqual(salvo.cnpj, "98.765.432/0001-98")
 
     def test_cadastro_sem_nome_ou_cnpj_e_bloqueado(self):
         with self.assertRaises(RegraNegocioViolation):
             self.cadastrar_fornecedor.executar("Agropecuária Central", "   ")
         with self.assertRaises(RegraNegocioViolation):
-            self.cadastrar_frigorifico.executar("", "98.765.432/0001-10")
+            self.cadastrar_frigorifico.executar("", "98.765.432/0001-98")
+
+    def test_cadastro_com_cnpj_invalido_e_bloqueado(self):
+        for executar in (
+            lambda: self.cadastrar_fornecedor.executar(
+                "Agropecuária Central", "12.345.678/0001-90"
+            ),
+            lambda: self.cadastrar_frigorifico.executar(
+                "Frigorífico Pampa Sul", "98.765.432/0001-10"
+            ),
+            lambda: self.cadastrar_fornecedor.executar(
+                "Agropecuária Central", "11111111111111"
+            ),
+        ):
+            with self.subTest(executar=executar):
+                with self.assertRaises(CNPJInvalidoError):
+                    executar()
 
 
 if __name__ == "__main__":

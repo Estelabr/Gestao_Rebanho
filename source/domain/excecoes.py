@@ -76,3 +76,11 @@ class CredencialInvalidaError(RegraNegocioViolation):
 
 class DocumentoDuplicadoError(RegraNegocioViolation):
     """Já existe uma conta de usuário cadastrada com o mesmo documento."""
+
+
+class CPFInvalidoError(RegraNegocioViolation):
+    """O CPF informado não é válido (tamanho, dígitos repetidos ou DV)."""
+
+
+class CNPJInvalidoError(RegraNegocioViolation):
+    """O CNPJ informado não é válido (tamanho, dígitos repetidos ou DV)."""

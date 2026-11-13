@@ -16,6 +16,8 @@ from source.domain.entidades.conta import Conta, normalizar_documento
 from source.domain.entidades.pessoas import Fornecedor, Frigorifico, Proprietario
 from source.domain.excecoes import (
     CadastroNaoPreenchidoError,
+    CNPJInvalidoError,
+    CPFInvalidoError,
     CredencialInvalidaError,
     DocumentoDuplicadoError,
     RegraNegocioViolation,
@@ -129,11 +131,11 @@ class TestCadastrarConta(unittest.TestCase):
 
     def test_cria_conta_com_papel_arquivo_e_credencial(self):
         conta = self.cadastrar.executar(
-            "Maria Fazendeira", "111.222.333-44", "proprietario", "segredo"
+            "Maria Fazendeira", "529.982.247-25", "proprietario", "segredo"
         )
 
         self.assertEqual(conta.nome, "Maria Fazendeira")
-        self.assertEqual(conta.documento, "111.222.333-44")
+        self.assertEqual(conta.documento, "529.982.247-25")
         self.assertEqual(conta.papel, "proprietario")
         self.assertTrue(conta.arquivo.startswith("dados_"))
         self.assertIn(conta, self.indice.listar())
@@ -143,7 +145,7 @@ class TestCadastrarConta(unittest.TestCase):
         # O arquivo de dados nasce pelo criador, com o papel declarado.
         self.assertEqual(
             self.criador.criacoes, [("proprietario", "Maria Fazendeira",
-                                     "111.222.333-44", conta.arquivo)]
+                                     "529.982.247-25", conta.arquivo)]
         )
 
     def test_papel_desconhecido_e_rejeitado(self):
@@ -151,14 +153,14 @@ class TestCadastrarConta(unittest.TestCase):
             self.cadastrar.executar("Fulano", "11122233344", "visitante", "senha")
 
     def test_documento_repetido_e_rejeitado(self):
-        self.cadastrar.executar("Maria", "11122233344", "proprietario", "segredo")
+        self.cadastrar.executar("Maria", "52998224725", "proprietario", "segredo")
         with self.assertRaises(DocumentoDuplicadoError):
-            self.cadastrar.executar("João", "11122233344", "fornecedor", "outra")
+            self.cadastrar.executar("João", "52998224725", "fornecedor", "outra")
 
     def test_documento_com_pontuacao_diferente_tambem_colide(self):
-        self.cadastrar.executar("Maria", "111.222.333-44", "proprietario", "segredo")
+        self.cadastrar.executar("Maria", "529.982.247-25", "proprietario", "segredo")
         with self.assertRaises(DocumentoDuplicadoError):
-            self.cadastrar.executar("João", "11122233344", "fornecedor", "outra")
+            self.cadastrar.executar("João", "52998224725", "fornecedor", "outra")
 
     def test_campos_obrigatorios(self):
         for nome, documento, papel, senha in [
@@ -170,6 +172,16 @@ class TestCadastrarConta(unittest.TestCase):
                 with self.assertRaises(RegraNegocioViolation):
                     self.cadastrar.executar(nome, documento, papel, senha)
 
+    def test_documento_invalido_e_rejeitado(self):
+        """A conta nova só nasce com documento válido (CPF ou CNPJ pelo
+        papel); o erro vem do domain service, antes de criar o arquivo."""
+        with self.assertRaises(CPFInvalidoError):
+            self.cadastrar.executar("Maria", "123.456.789-00", "proprietario", "segredo")
+        with self.assertRaises(CNPJInvalidoError):
+            self.cadastrar.executar("João", "12.345.678/0001-90", "fornecedor", "segredo")
+        self.assertEqual(self.indice.listar(), [])
+        self.assertEqual(self.criador.criacoes, [])
+
 
 class TestAutenticarConta(unittest.TestCase):
     def setUp(self) -> None:
@@ -178,16 +190,16 @@ class TestAutenticarConta(unittest.TestCase):
         self.autenticar = AutenticarConta(self.indice)
 
     def test_senha_correta_devolve_a_conta_com_o_papel(self):
-        criada = self.cadastrar.executar("Maria", "11122233344", "fornecedor", "segredo")
-        autenticada = self.autenticar.executar("111.222.333-44", "segredo")
+        criada = self.cadastrar.executar("Maria", "12345678000195", "fornecedor", "segredo")
+        autenticada = self.autenticar.executar("12.345.678/0001-95", "segredo")
         self.assertEqual(autenticada.arquivo, criada.arquivo)
         self.assertEqual(autenticada.papel, "fornecedor")
         self.assertEqual(autenticada.nome, "Maria")
 
     def test_senha_errada_e_rejeitada(self):
-        self.cadastrar.executar("Maria", "11122233344", "proprietario", "segredo")
+        self.cadastrar.executar("Maria", "52998224725", "proprietario", "segredo")
         with self.assertRaises(CredencialInvalidaError):
-            self.autenticar.executar("11122233344", "errada")
+            self.autenticar.executar("52998224725", "errada")
 
     def test_documento_desconhecido_e_rejeitado(self):
         with self.assertRaises(CredencialInvalidaError):
@@ -243,10 +255,10 @@ class TestSincronizacaoDoIndice(unittest.TestCase):
             proprietario, RepositorioProprietarioMemoria(proprietario), indice
         )
 
-        autocadastro.executar("Nome novo", "222", "nova senha")
+        autocadastro.executar("Nome novo", "52998224725", "nova senha")
 
         self.assertIsNone(indice.buscar_por_documento("111"))
-        conta = indice.buscar_por_documento("222")
+        conta = indice.buscar_por_documento("52998224725")
         self.assertEqual(conta.nome, "Nome novo")
         self.assertEqual(conta.papel, "proprietario")
         self.assertEqual(conta.arquivo, "dados.json")
@@ -255,14 +267,14 @@ class TestSincronizacaoDoIndice(unittest.TestCase):
     def test_autocadastro_nao_deixa_trocar_para_documento_ocupado(self):
         indice = RepositorioContasMemoria()
         indice.adicionar(Conta("Nome antigo", "111", "proprietario", "dados.json"))
-        indice.adicionar(Conta("Outra pessoa", "222", "fornecedor", "dados_222.json"))
+        indice.adicionar(Conta("Outra pessoa", "52998224725", "fornecedor", "dados_222.json"))
         proprietario = Proprietario("Nome antigo", "111", "credencial")
         autocadastro = Autocadastro(
             proprietario, RepositorioProprietarioMemoria(proprietario), indice
         )
 
         with self.assertRaises(DocumentoDuplicadoError):
-            autocadastro.executar("Nome antigo", "222", "nova senha")
+            autocadastro.executar("Nome antigo", "529.982.247-25", "nova senha")
         self.assertEqual(indice.buscar_por_documento("111").nome, "Nome antigo")
 
     def test_cadastro_do_fornecedor_le_o_documento_novo_ao_indice(self):
@@ -273,10 +285,10 @@ class TestSincronizacaoDoIndice(unittest.TestCase):
             fornecedor, RepositorioFornecedorMemoria(fornecedor), indice
         )
 
-        cadastro.executar("Insumos Beltrano Ltda", "22222222222222")
+        cadastro.executar("Insumos Beltrano Ltda", "12345678000195")
 
         self.assertIsNone(indice.buscar_por_documento("222"))
-        conta = indice.buscar_por_documento("22222222222222")
+        conta = indice.buscar_por_documento("12345678000195")
         self.assertEqual(conta.nome, "Insumos Beltrano Ltda")
         self.assertEqual(conta.papel, "fornecedor")
         self.assertEqual(conta.arquivo, "dados_222.json")
@@ -289,21 +301,23 @@ class TestSincronizacaoDoIndice(unittest.TestCase):
             frigorifico, RepositorioFrigorificoMemoria(frigorifico), indice
         )
 
-        cadastro.executar("Frigol S.A.", "55555555555555")
+        cadastro.executar("Frigol S.A.", "98765432000198")
 
-        self.assertEqual(indice.buscar_por_documento("55555555555555").papel, "frigorifico")
+        self.assertEqual(indice.buscar_por_documento("98765432000198").papel, "frigorifico")
 
     def test_documento_novo_ocupado_e_rejeitado_no_cadastro_do_fornecedor(self):
         indice = RepositorioContasMemoria()
         indice.adicionar(Conta("Insumos Beltrano", "222", "fornecedor", "dados_222.json"))
-        indice.adicionar(Conta("Outra empresa", "333", "fornecedor", "dados_333.json"))
+        indice.adicionar(
+            Conta("Outra empresa", "12345678000195", "fornecedor", "dados_333.json")
+        )
         fornecedor = Fornecedor("Insumos Beltrano", "222")
         cadastro = CadastrarFornecedor(
             fornecedor, RepositorioFornecedorMemoria(fornecedor), indice
         )
 
         with self.assertRaises(DocumentoDuplicadoError):
-            cadastro.executar("Insumos Beltrano", "333")
+            cadastro.executar("Insumos Beltrano", "12.345.678/0001-95")
         self.assertEqual(indice.buscar_por_documento("222").nome, "Insumos Beltrano")
 
 
