@@ -37,6 +37,7 @@ from source.domain.repositorios import (
     RepositorioInsumos,
     RepositorioProprietario,
 )
+from source.domain.servicos import ValidarCnpj, ValidarCpf
 from source.usecases.senhas import conferir, gerar_credencial
 
 
@@ -469,6 +470,7 @@ class Autocadastro:
     def executar(self, nome: str, cpf: str, senha: str) -> Proprietario:
         if not senha.strip():
             raise RegraNegocioViolation("A senha é obrigatória no autocadastro.")
+        ValidarCpf.validar(cpf)
         documento_novo = cpf.strip()
         documento_antigo = self.__proprietario.cpf
         mudou_documento = (
@@ -521,6 +523,14 @@ class CadastrarConta:
         conta_existente = self.__repositorio_contas.buscar_por_documento(documento.strip())
         if conta_existente is not None:
             return self.__adotar_ou_rejeitar(conta_existente, nome.strip(), senha.strip())
+        # Conta nova: o documento precisa ser válido pelo papel (CPF do
+        # proprietário, CNPJ dos demais). Contas legadas sem senha são
+        # adotadas como estão — o cadastro antigo delas pode ter
+        # documento incompleto, e adotar não é criar conta nova.
+        if papel == "proprietario":
+            ValidarCpf.validar(documento)
+        else:
+            ValidarCnpj.validar(documento)
         credencial = gerar_credencial(senha.strip())
         arquivo = self.__criador.criar(papel, nome.strip(), documento.strip())
         conta = Conta(nome.strip(), documento.strip(), papel, arquivo, credencial)
@@ -588,6 +598,7 @@ class CadastrarFornecedor:
         self.__repositorio_contas = repositorio_contas
 
     def executar(self, nome: str, cnpj: str) -> Fornecedor:
+        ValidarCnpj.validar(cnpj)
         documento_antigo = self.__fornecedor.cnpj
         if normalizar_documento(cnpj.strip()) != normalizar_documento(documento_antigo):
             _garantir_documento_livre(self.__repositorio_contas, cnpj)
@@ -618,6 +629,7 @@ class CadastrarFrigorifico:
         self.__repositorio_contas = repositorio_contas
 
     def executar(self, nome: str, cnpj: str) -> Frigorifico:
+        ValidarCnpj.validar(cnpj)
         documento_antigo = self.__frigorifico.cnpj
         if normalizar_documento(cnpj.strip()) != normalizar_documento(documento_antigo):
             _garantir_documento_livre(self.__repositorio_contas, cnpj)
