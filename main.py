@@ -13,6 +13,7 @@ ao login para a entrada de outro usuário.
 Uso:
     python main.py            -> abre a interface gráfica (Tkinter)
     python main.py --console  -> roda o menu de texto no terminal
+    python main.py --demo     -> mostra no console uma demonstração com os objetos
 """
 
 import sys
@@ -32,6 +33,7 @@ from source.infra.repositorio_json import (
     RepositorioInsumosJson,
     RepositorioProprietarioJson,
 )
+from source.interfaces.demonstracao_console import rodar_demonstracao
 from source.interfaces.presenter_console import AplicacaoConsole, AutenticacaoConsole
 from source.usecases.casos_de_uso import (
     AutenticarConta,
@@ -158,6 +160,10 @@ def montar_casos_de_uso(
 
 
 def main() -> None:
+    if "--demo" in sys.argv[1:]:
+        rodar_demonstracao()
+        return
+
     indice = montar_indice_de_contas()
     criador_de_arquivos = FonteDeCadastros()
 

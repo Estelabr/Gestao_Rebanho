@@ -184,6 +184,9 @@ python main.py
 # Menu de texto no terminal
 python main.py --console
 
+# Demonstração no console, sem login e sem gravar arquivos
+python main.py --demo
+
 # Testes (unittest, biblioteca padrão)
 python -m unittest discover -s testes -v
 ```
@@ -195,6 +198,12 @@ login abre direto a área correspondente, sem perguntar "quem está usando", e o
 do papel nasce semeado no arquivo da conta. Cada conta tem um arquivo de dados próprio;
 ao encerrar a sessão, o fluxo volta ao login, para que outro usuário entre com a conta
 dele.
+
+O `--demo` cria os objetos direto no código e imprime a interação entre eles: o
+cadastro do rebanho, pesagens e vacinas, a compra de insumos do fornecedor, a base de
+alimentação, a inseminação e o parto, e a venda ao frigorífico. Ele mostra as duas regras
+de negócio barrando o que não pode (venda abaixo do peso, venda repetida e inseminação de
+fêmea prenhe) e não grava nada em arquivo.
 
 ## Estrutura do projeto
 
@@ -236,7 +245,8 @@ Gestao_Rebanho/
         ├── janela_frigorifico.py  # área do Frigorífico
         ├── janela_fornecedor.py   # área do Fornecedor de Insumos
         ├── formularios.py         # formulários Label + Entry compartilhados
-        └── presenter_console.py   # login em texto + menu por ator, com credencial
+        ├── presenter_console.py   # login em texto + menu por ator, com credencial
+        └── demonstracao_console.py # demonstração com os objetos (python main.py --demo)
 ```
 
 ## Pilares de POO aplicados
