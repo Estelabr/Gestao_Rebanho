@@ -149,17 +149,17 @@ inversão de dependência (casos de uso e interface dependem de abstrações, n�
 JSON), nomes reveladores de intenção e funções pequenas.
 
 ## Uso do Virtual environment
-O Virtual environment, geralmente referido no repositório como (.venv/) tem como principal objetivo armazenar uma cópia,de forma isolada, do interpretador python e das bibliotecas específicas que forma usadas no projeto.
-Em nosso projeto, utilizamos essa função para garantir que quando o código for executado não ocorra nenhum erro, escolhemos fazer desta maneira para fazer com que toda vez que alguém execute o código esteja rodando na mesma versão, para assim evitar conflitos entre pacotes diferentes e tornar todo o processo de uso mais eficiente. E mesmo se precisarmos realizar alguma alteração no projeto poderíamos facilmente apagar (.venv/) e recria-lá para se encaixar em qualquer alteração de código realizada.
+O Virtual environment, geralmente referido no repositório como (.venv/) tem como principal objetivo armazenar uma cópia, de forma isolada, do interpretador Python e das bibliotecas específicas que foram usadas no projeto.
+Em nosso projeto, utilizamos essa função para garantir que quando o código for executado não ocorra nenhum erro. Escolhemos fazer desta maneira para que, toda vez que alguém executar o código, ele esteja rodando na mesma versão, para assim evitar conflitos entre pacotes diferentes e tornar todo o processo de uso mais eficiente. E, mesmo se precisarmos realizar alguma alteração no projeto, podemos facilmente apagar (.venv/) e recriá-lo para se encaixar em qualquer alteração de código realizada.
 
 
-## Uso do Workflow do Github Actions
-O Github actions é uma plataforma de integração contínua e entrega contínua. Seu objetivo é automatizar certas etapas da programação como a compilação,testar e pipeline de implantação, é como se essa ferramenta fornecesse diversas máquinas com diferentes sistemas operacionais para executar os fluxos de trabalho(Workflows).
-Os Workflows são os processos autmotizados configurados para executar um ou mais trabalhos, eles são definido por um arquivo YAML, que verifica o repositório e executa quando acionado por um evento determinado,ou ser acionado manualmente ou seguindo um cronograma definido. Os fluxos de trabahlo são definidos no diretório .github/workflows de um repositório.
-Em nosso repositório possuimos o arquivo tests.yml, que tem o objetivo de executar testes de maneira automática sempre que houver um (push) na (main), algumas outras tarefas que ele realiza são:
+## Uso do Workflow do GitHub Actions
+O GitHub Actions é uma plataforma de integração contínua e entrega contínua. Seu objetivo é automatizar certas etapas da programação como a compilação, os testes e o pipeline de implantação. É como se essa ferramenta fornecesse diversas máquinas com diferentes sistemas operacionais para executar os fluxos de trabalho (workflows).
+Os Workflows são os processos automatizados configurados para executar um ou mais trabalhos. Eles são definidos por um arquivo YAML, que verifica o repositório e é executado quando acionado por um evento determinado, manualmente ou seguindo um cronograma definido. Os fluxos de trabalho são definidos no diretório .github/workflows de um repositório.
+Em nosso repositório possuímos o arquivo tests.yml, que tem o objetivo de executar testes de maneira automática sempre que houver um (push) na (main). Algumas outras tarefas que ele realiza são:
 Baixar o código do repositório.
 Configurar o ambiente com Ubuntu e Python 3.14.
-Com isso, buscamos garantir que o que foi desenvolvido não quebre o comportamento do código, visto que possuimos essa ferramenta que valida se os testes automatizados passam a cada PR.
+Com isso, buscamos garantir que o que foi desenvolvido não quebre o comportamento do código, visto que possuímos essa ferramenta que valida se os testes automatizados passam a cada PR.
 
 
 ## Validação de estilo (flake8)
